@@ -1,0 +1,151 @@
+# M1 scope: database + tooling. Web and worker services arrive in later milestones.
+name: nakhel
+
+x-db-env: &db-env
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+  POSTGRES_DB: nakhel
+  NAKHEL_OWNER_PASSWORD: ${NAKHEL_OWNER_PASSWORD}
+  NAKHEL_WEB_PASSWORD: ${NAKHEL_WEB_PASSWORD}
+  NAKHEL_WORKER_PASSWORD: ${NAKHEL_WORKER_PASSWORD}
+
+services:
+  db:
+    image: timescale/timescaledb:2.31.0-pg17
+    # The image would otherwise give itself 25% of the host's RAM, which is too much on a
+    # server shared with other services. Raise this on a dedicated VM (M9).
+    command: ["postgres", "-c", "shared_buffers=${NAKHEL_DB_SHARED_BUFFERS:-512MB}"]
+    environment: *db-env
+    ports:
+      - "127.0.0.1:${NAKHEL_DB_PORT:-5433}:5432"
+    volumes:
+      - nakhel_db:/var/lib/postgresql/data
+      - ./db/init/10_nakhel_roles.sh:/docker-entrypoint-initdb.d/10_nakhel_roles.sh:ro
+    healthcheck: &db-health
+      # Connects over TCP: during first-time init the server listens on the unix socket only.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d nakhel"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  # Throwaway database for tests: in-memory, rebuilt from zero on every run.
+  db-test:
+    profiles: [test]
+    image: timescale/timescaledb:2.31.0-pg17
+    environment: *db-env
+    ports:
+      - "127.0.0.1:${NAKHEL_DB_TEST_PORT:-5434}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./db/init/10_nakhel_roles.sh:/docker-entrypoint-initdb.d/10_nakhel_roles.sh:ro
+    healthcheck: *db-health
+
+  dbmate:
+    profiles: [tools]
+    image: ghcr.io/amacneil/dbmate:2.37.0
+    environment:
+      DATABASE_URL: postgres://nakhel_owner:${NAKHEL_OWNER_PASSWORD}@${DBMATE_HOST:-db}:5432/nakhel?sslmode=disable
+      DBMATE_MIGRATIONS_DIR: /db/migrations
+      DBMATE_NO_DUMP_SCHEMA: "true"
+      DBMATE_WAIT: "true"
+    volumes:
+      - ./db:/db:ro
+
+  # Python 3.10 toolbox: seed, tests, lint. Nothing needs installing on the host.
+  tools:
+    profiles: [tools]
+    build: ./tools
+    image: nakhel-tools:local
+    environment:
+      POSTGRES_SUPERUSER_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      NAKHEL_OWNER_PASSWORD: ${NAKHEL_OWNER_PASSWORD}
+      NAKHEL_WEB_PASSWORD: ${NAKHEL_WEB_PASSWORD}
+      NAKHEL_WORKER_PASSWORD: ${NAKHEL_WORKER_PASSWORD}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD}
+      NAKHEL_DB_HOST: ${NAKHEL_DB_HOST:-db}
+      WEB_URL: http://web:3000
+      MAILPIT_API: http://mailpit:8025/api/v1
+      APP_ORIGIN_FIRST: http://127.0.0.1:${NAKHEL_WEB_PORT:-3100}
+    volumes:
+      - .:/repo
+    working_dir: /repo
+
+  # Node 24 toolbox: npm, tests, scripts. Nothing needs installing on the host.
+  node:
+    profiles: [tools]
+    image: node:24-slim
+    environment:
+      DATABASE_URL: postgres://nakhel_web:${NAKHEL_WEB_PASSWORD}@${NAKHEL_DB_HOST:-db}:5432/nakhel?sslmode=disable
+      DATABASE_URL_ADMIN: postgres://nakhel_owner:${NAKHEL_OWNER_PASSWORD}@${NAKHEL_DB_HOST:-db}:5432/nakhel?sslmode=disable
+      SESSION_SECRET: ${SESSION_SECRET}
+      APP_ORIGIN: ${APP_ORIGIN}
+    volumes:
+      - .:/repo
+    working_dir: /repo/web
+
+  # The ingestion API and, later, the dashboard.
+  web:
+    build: ./web
+    image: nakhel-web:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://nakhel_web:${NAKHEL_WEB_PASSWORD}@db:5432/nakhel?sslmode=disable
+      SESSION_SECRET: ${SESSION_SECRET}
+      APP_ORIGIN: ${APP_ORIGIN}
+    ports:
+      - "127.0.0.1:${NAKHEL_WEB_PORT:-3100}:3000"
+
+  # Browser tests. network_mode host: they reach the app on its published port.
+  e2e:
+    profiles: [tools]
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    network_mode: host
+    environment:
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD}
+      E2E_BASE_URL: http://127.0.0.1:${NAKHEL_WEB_PORT:-3100}
+    volumes:
+      - .:/repo
+    working_dir: /repo/web
+
+  # Classifies measurements, raises alerts, sends email.
+  worker:
+    build: ./worker
+    image: nakhel-worker:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &worker-env
+      DATABASE_URL: postgres://nakhel_worker:${NAKHEL_WORKER_PASSWORD}@${NAKHEL_DB_HOST:-db}:5432/nakhel?sslmode=disable
+      APP_BASE_URL: ${APP_BASE_URL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      EMAIL_FROM: ${EMAIL_FROM}
+    restart: unless-stopped
+
+  worker-test:
+    profiles: [tools]
+    build: ./worker
+    image: nakhel-worker:local
+    environment:
+      <<: *worker-env
+      DATABASE_URL_ADMIN: postgres://nakhel_owner:${NAKHEL_OWNER_PASSWORD}@${NAKHEL_DB_HOST:-db}:5432/nakhel?sslmode=disable
+    volumes:
+      - ./worker:/app
+    working_dir: /app
+    user: root
+
+  # Catches all email in development. Inbox: http://127.0.0.1:8026
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    ports:
+      - "127.0.0.1:8026:8025"
+      - "127.0.0.1:1026:1025"
+
+volumes:
+  nakhel_db:

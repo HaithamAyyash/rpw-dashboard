@@ -1,0 +1,13 @@
+[MASTER]
+init-hook=import sys; sys.path[:0] = ['tools', 'db/tests']
+
+[MESSAGES CONTROL]
+# Tests and one-file tools: docstrings on every function add little here.
+disable=missing-function-docstring,missing-class-docstring,too-few-public-methods,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-statements,import-outside-toplevel,duplicate-code,redefined-outer-name,unused-argument
+
+[FORMAT]
+max-line-length=120
+
+[TYPECHECK]
+# psycopg2 builds these error classes at runtime.
+generated-members=psycopg2.errors.*,errors.*

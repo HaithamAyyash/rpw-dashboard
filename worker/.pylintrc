@@ -1,0 +1,11 @@
+[MASTER]
+init-hook=import sys; sys.path[:0] = ['.', 'tests']
+
+[MESSAGES CONTROL]
+disable=missing-function-docstring,missing-class-docstring,too-few-public-methods,too-many-arguments,too-many-positional-arguments,too-many-locals,redefined-outer-name,unused-argument,duplicate-code,broad-exception-caught
+
+[FORMAT]
+max-line-length=120
+
+[TYPECHECK]
+generated-members=psycopg2.errors.*,errors.*

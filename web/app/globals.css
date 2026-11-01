@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* Tokens from docs/design/nakhel_dashboard_prototype. */
+:root {
+  --bg: #0a0e0c;
+  --surface: #111614;
+  --card: #1e2523;
+  --card-alt: #242b29;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-md: rgba(255, 255, 255, 0.16);
+  --accent: #7cea9c;
+  --accent-dim: rgba(124, 234, 156, 0.12);
+  --accent-text: #1a4a30;
+  --text-1: #dde8de;
+  --text-2: #8fa490;
+  --text-3: #5a6e5b;
+  --warn: #f5a623;
+  --warn-bg: rgba(245, 166, 35, 0.12);
+  --danger: #e05555;
+  --danger-bg: rgba(224, 85, 85, 0.12);
+  --info: #5fa8e0;
+  --info-bg: rgba(95, 168, 224, 0.12);
+  --status-healthy: #7cea9c;
+  --status-suspected: #f5a623;
+  --status-alert: #e05555;
+  --status-offline: #2e4035;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-alt: var(--card-alt);
+  --color-line: var(--border);
+  --color-line-md: var(--border-md);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-text: var(--accent-text);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --font-sans: var(--font-plex-sans), sans-serif;
+  --font-mono: var(--font-plex-mono), monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.live-dot {
+  animation: blink 2s ease-in-out infinite;
+}
+.live-dot-off {
+  animation: none;
+}
+
+button:not(:disabled),
+a {
+  cursor: pointer;
+}

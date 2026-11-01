@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.next/
+backups/
+*.tsbuildinfo
+next-env.d.ts
+web/tests/e2e/.output/
+web/test-results/
+tools/.sim_config.json
