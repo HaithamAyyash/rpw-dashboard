@@ -5,7 +5,7 @@ Shows the auth header, timeouts and retry rules from docs/contracts/cluster_head
 Needs only `requests`. The SQLite buffer is the Pi team's; the three comments marked BUFFER show
 where it plugs in.
 
-Try it:  python pi_client_example.py --url http://127.0.0.1:3100 --key nkh_... --lora-id 1000
+Try it:  python pi_client_example.py --url http://127.0.0.1:3100 --key nkh_... --lora-id 42
 """
 import argparse
 import random

@@ -92,14 +92,14 @@ NODE_SQL = ('INSERT INTO nodes (org_id, cluster_id, lora_id, tree_label, locatio
             'VALUES (%s, %s, %s, %s, %s, %s)')
 
 
-@pytest.mark.parametrize('lora,lat,lon', [(-1, 24, 55), (65536, 24, 55), (5, 91, 55), (5, -91, 55),
+@pytest.mark.parametrize('lora,lat,lon', [(-1, 24, 55), (256, 24, 55), (5, 91, 55), (5, -91, 55),
                                           (5, 24, 181), (5, 24, -181)])
 def test_node_ranges(db, orgs, lora, lat, lon):
     a, _ = orgs
     expect_rejected(db, errors.CheckViolation, NODE_SQL, (a.org_id, a.cluster_id, lora, 'T', lat, lon))
 
 
-@pytest.mark.parametrize('lora', [0, 65535])
+@pytest.mark.parametrize('lora', [0, 255])
 def test_lora_range_edges_allowed(db, orgs, lora):
     a, _ = orgs
     with db('nakhel_owner') as cur:
@@ -108,14 +108,14 @@ def test_lora_range_edges_allowed(db, orgs, lora):
 
 def test_lora_unique_per_cluster_head(db, orgs):
     a, _ = orgs
-    expect_rejected(db, errors.UniqueViolation, NODE_SQL, (a.org_id, a.cluster_id, 1000, 'T', 24, 55))
+    expect_rejected(db, errors.UniqueViolation, NODE_SQL, (a.org_id, a.cluster_id, 100, 'T', 24, 55))
 
 
 def test_lora_id_reusable_after_node_retired(db, orgs):
     a, _ = orgs
     with db('nakhel_owner') as cur:
         cur.execute('UPDATE nodes SET active = false WHERE node_id = %s', (a.node_id,))
-        cur.execute(NODE_SQL, (a.org_id, a.cluster_id, 1000, 'Replacement', 24, 55))
+        cur.execute(NODE_SQL, (a.org_id, a.cluster_id, 100, 'Replacement', 24, 55))
 
 
 def test_same_lora_id_on_two_cluster_heads_of_one_org(db, orgs):
@@ -123,7 +123,7 @@ def test_same_lora_id_on_two_cluster_heads_of_one_org(db, orgs):
     with db('nakhel_owner') as cur:
         cur.execute('INSERT INTO cluster_heads (org_id, name, api_key_hash) VALUES (%s, %s, %s) '
                     'RETURNING cluster_id', (a.org_id, 'CH-02', key_hash('other')))
-        cur.execute(NODE_SQL, (a.org_id, cur.fetchone()[0], 1000, 'T', 24, 55))
+        cur.execute(NODE_SQL, (a.org_id, cur.fetchone()[0], 100, 'T', 24, 55))
 
 
 @pytest.mark.parametrize('name', ['CH-01'])

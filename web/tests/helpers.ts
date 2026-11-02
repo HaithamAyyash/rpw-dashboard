@@ -25,7 +25,7 @@ export type TestOrg = {
 };
 
 export async function makeOrg(
-  loraIds: number[] = [1000, 1001],
+  loraIds: number[] = [100, 101],
 ): Promise<TestOrg> {
   const slug = `t-${randomUUID().slice(0, 8)}`;
   const { orgId } = await createOrg({
@@ -63,7 +63,7 @@ export function body(
 ): Record<string, unknown> & { timestamp: string } {
   tick += 1;
   return {
-    node_id: 1000,
+    node_id: 100,
     timestamp: new Date(Date.now() - 3_600_000 - tick * 1000).toISOString(),
     mfcc: mfcc(),
     ...overrides,

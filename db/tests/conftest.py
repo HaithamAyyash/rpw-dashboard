@@ -49,7 +49,7 @@ def lock_chunks(cur):
 
 
 class Org:
-    """One test organization: an owner, a cluster head, and a node with LoRa ID 1000."""
+    """One test organization: an owner, a cluster head, and a node with LoRa ID 100."""
     def __init__(self, cur, slug):
         self.owner = str(uuid.uuid4())
         self.raw_key = f'key-{slug}'
@@ -64,7 +64,7 @@ class Org:
                     'RETURNING cluster_id', (self.org_id, 'CH-01', key_hash(self.raw_key)))
         self.cluster_id = cur.fetchone()[0]
         cur.execute('INSERT INTO nodes (org_id, cluster_id, lora_id, tree_label) '
-                    "VALUES (%s, %s, 1000, 'T1') RETURNING node_id", (self.org_id, self.cluster_id))
+                    "VALUES (%s, %s, 100, 'T1') RETURNING node_id", (self.org_id, self.cluster_id))
         self.node_id = cur.fetchone()[0]
         insert_feature(cur, self.org_id, self.node_id, self.cluster_id)
         cur.execute('INSERT INTO node_health ("timestamp", org_id, node_id, battery_mv) '

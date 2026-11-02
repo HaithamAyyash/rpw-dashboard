@@ -124,7 +124,7 @@ Triggers refuse removing the last owner, and refuse committing a new organizatio
 |---|---|---|
 | node_id | bigint PK | Internal ID used everywhere in the database |
 | org_id, cluster_id | FK | Composite FK to cluster_heads |
-| lora_id | int 0–65535 | The radio's 2-byte ID. Unique among active nodes per cluster head, so **never treat this as a node ID** |
+| lora_id | int 0–255 | The radio's 1-byte ID, so at most 256 nodes per cluster head. Unique among active nodes per cluster head, so **never treat this as a node ID** |
 | tree_label | text | E.g. `PLM-A-07` |
 | farm_zone | text | |
 | install_date | date | |

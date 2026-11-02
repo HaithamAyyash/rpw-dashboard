@@ -1,5 +1,5 @@
 -- Alert log. GET /alerts?from=&to=&severity=&acknowledged=
--- @params from:timestamptz to:timestamptz severity:text acknowledged:boolean limit:int offset:int
+-- @params from:timestamptz to:timestamptz severity:text acknowledged:boolean limit:int offset:int zone:text
 -- @returns alert_id, timestamp, alert_type, severity, confidence, message, node_id, tree_label, cluster_id, cluster_name, acknowledged, acknowledged_by_name, acknowledged_at, email_sent_at
 SELECT a.alert_id, a."timestamp", a.alert_type, a.severity, a.confidence, a.message,
        a.node_id, n.tree_label, a.cluster_id, c.name AS cluster_name,
@@ -12,5 +12,6 @@ WHERE a.org_id = current_org_id()
   AND a."timestamp" >= $1 AND a."timestamp" < $2
   AND ($3::text IS NULL OR a.severity = $3)
   AND ($4::boolean IS NULL OR a.acknowledged = $4)
+  AND ($7::text IS NULL OR COALESCE(n.farm_zone, c.farm_zone) = $7)
 ORDER BY a."timestamp" DESC, a.alert_id DESC
 LIMIT $5 OFFSET $6;

@@ -17,7 +17,7 @@ NOW = datetime(2026, 11, 1, tzinfo=timezone.utc)
 def config(nodes=30):
     def cluster(key, condition_of):
         return {'name': 'CH-01', 'key': key,
-                'nodes': [{'lora_id': 1000 + i, 'condition': condition_of(i), 'slot': i, 'label': f'T{i}'}
+                'nodes': [{'lora_id': 1 + i, 'condition': condition_of(i), 'slot': i, 'label': f'T{i}'}
                           for i in range(nodes)]}
     return {'orgs': [
         {'slug': 'a', 'timezone': 'Asia/Dubai',
@@ -43,8 +43,8 @@ def test_events_are_in_time_order_and_inside_the_window():
 def test_most_healthy_wakeups_send_nothing_and_infested_ones_mostly_send():
     counts = Counter((e.cluster_key, e.lora_id) for e in plan())
     wakeups = 12 * 20
-    assert counts[('key-a', 1000)] > wakeups * 0.8
-    healthy = [counts[('key-a', 1000 + i)] for i in range(2, 30)]
+    assert counts[('key-a', 1)] > wakeups * 0.8
+    healthy = [counts[('key-a', 1 + i)] for i in range(2, 30)]
     assert sum(healthy) / len(healthy) < wakeups * 0.2
 
 
@@ -59,9 +59,9 @@ def test_schedule_is_local_time():
 
 
 def test_body_matches_the_contract():
-    event = sim.Event(NOW, 'k', 1000, 'infested')
+    event = sim.Event(NOW, 'k', 1, 'infested')
     body = sim.to_body(event, rng(), with_optional=True)
-    assert body['timestamp'].endswith('Z') and body['node_id'] == 1000
+    assert body['timestamp'].endswith('Z') and body['node_id'] == 1
     assert len(body['mfcc']) == 30 and all(len(row) == 13 for row in body['mfcc'])
     assert {'msg_id', 'received_at', 'snr_db', 'rssi_dbm'} <= set(body)
     assert set(sim.to_body(event, rng(), with_optional=False)) == {'node_id', 'timestamp', 'mfcc'}

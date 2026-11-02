@@ -31,12 +31,13 @@ For citation in the Senior Design II report. Each entry records what the report 
 
 | # | Issue | What we did | Why / action needed |
 |---|---|---|---|
-| N1 | **TDMA capacity.** 8,000 nodes × 900 ms slots = 2 h per round, but the night schedule wakes nodes hourly. At most 4,000 nodes fit one hourly round. | No schema impact. The fake-data generator wraps slot offsets at 1 h. | **Hardware team must resolve:** fewer nodes per cluster head, or shorter slots. |
+| N1 | **TDMA capacity (resolved by N8).** 8,000 nodes × 900 ms slots = 2 h per round, but the night schedule wakes nodes hourly. At most 4,000 nodes fit one hourly round. | No schema impact. The fake-data generator wraps slot offsets at 1 h. | **Hardware team must resolve:** fewer nodes per cluster head, or shorter slots. |
 | N2 | **Prototype vs brief thresholds.** The prototype colours bars at 25% / 55%; the brief says 0.5 / 0.8. | Thresholds are per-organization, default 0.5 / 0.8. | Brief takes priority. |
 | N3 | **Prototype assumes hourly reports from every node** ("18 nodes × 1/hr"), which SNR gating contradicts. | Seed follows the gate. | The Measurements/hr card will be much lower than the prototype implies. |
 | N4 | **Row-level security can be bypassed through TimescaleDB chunks.** Chunks inherit the hypertable's GRANTs but not its RLS, so `nakhel_web` could read every organization's rows by naming a chunk. Found by a test. | Migration 0008: app roles' grants on chunks are revoked by `lock_down_chunks()`, which a TimescaleDB job runs every minute. | Closing the schema is impossible (the planner needs it). **Limitation:** a brand-new chunk stays exposed for up to 1 minute. It's reachable only by SQL that names the chunk, and the app's parameterized queries never do. |
 | N5 | **"Only two lookups bypass RLS" isn't enough.** Login needs the password hash (a separate need from memberships), and invite links need a token lookup before the organization is known. | Four `SECURITY DEFINER` functions: `ingest_auth`, `auth_user_by_email`, `auth_memberships`, `invite_by_token`. Two more guard the owner rule inside triggers. A test fails if any other appears. | Brief §5 lists two. |
 | N6 | **The brief doesn't list `schema_version` in `acoustic_features`**, but §4 says to store it. | Added, default 1. | Internal consistency of the brief. |
+| N8 | **The node ID is 1 byte (team, 2026-11-01).** The brief says 2 bytes (0–65535), up to 8,000 nodes per cluster head. 1 byte allows at most 256 nodes per cluster head, so 8,000 trees need at least 32 cluster heads. | `lora_id` is limited to 0–255 in the database, API, Settings and CSV import (migration 0011). The internal `node_id` is unaffected. Nodes are added by manual entry or CSV, as decided by the team. | Report, brief and the 214-byte packet layout need updating. It also removes N1's TDMA overrun: 256 × 900 ms is about 4 minutes. **All 256 IDs are allowed for now: confirm whether any are reserved, such as 255 for broadcast.** |
 | N7 | **A reverted setting is `''`, not NULL.** After `SET LOCAL` ends on a pooled connection, the brief's policy `current_setting(...)::uuid` would raise an error, rather than return nothing. | `current_org_id()` applies `NULLIF(..., '')`. Tested. | Keeps "fails closed" returning no rows, as the brief specifies. |
 
 ## Other schema additions
@@ -99,7 +100,7 @@ For citation in the Senior Design II report. Each entry records what the report 
 | U5 | Top-bar zone selector, kept in the URL, filters cards and summary (assumed, Q-ZONE). | An organization can have several zones. |
 | U6 | Bar colours follow each organization's thresholds, not the prototype's 25% / 55% (N2). Battery shows % and mV, with % estimated linearly over 3,300–4,200 mV (assumed, D3). | The brief stores mV and the prototype shows %. The battery chemistry is still unknown. |
 | U7 | Added beyond the prototype: LoRa ID, search box, Offline filter, last measurement, battery, Navigate to tree, paging. Kept the prototype's last-3-runs chips. | Brief section 8. Paging is needed for thousands of trees. |
-| U8 | "Export report" is disabled until the CSV endpoints exist (M8). Other nav items open a "not built yet" page. | So nothing pretends to work. |
+| U8 | "Export report" opens a menu of the three CSVs for the last 30 days (Q-EXPORT, assumed). No PDF. | Brief section 7 defines CSV exports only. |
 | U9 | The Live pill turns red ("Disconnected") when polling fails. | It shouldn't claim "Live" during an outage. |
 
 ## Worker and alerts (M3, M4)
@@ -121,6 +122,23 @@ For citation in the Senior Design II report. Each entry records what the report 
 | W13 | Email links go to `/{org}?q={tree label}`. | There's no tree page yet. |
 | W14 | Duplicate requests aren't counted anywhere yet, though the report needs that metric. | They store nothing, so there's no row to count. Add in M9. |
 | W15 | The simulator registers organizations directly in the database, and only its measurements go through the API. Its keys are in `tools/.sim_config.json`, git-ignored. | Dashboard registration doesn't exist yet. |
+
+## Screens (M7, M8)
+
+| # | Decision | Why |
+|---|---|---|
+| V1 | Tree markers are drawn with Leaflet directly on one canvas, not as a React component each; only alert trees get an animated marker. | Brief requires speed with thousands of markers. **Not yet measured at 8,000 nodes**; see K6. |
+| V2 | Satellite tiles from Esri, switching to OpenStreetMap after 5 tile failures (D8). Attribution shown. | D8 default. Check Esri's terms before any commercial use. |
+| V3 | Energy charts use the brief's status colours with a different dash per line, a legend and a table view. The palette validator passes contrast and colour-blind separation but fails its lightness band, which is a rule for categorical palettes. | Status colours are mandated by the brief, so dash patterns are the second cue. |
+| V4 | Energy axis shows raw mean c0 with an auto scale, not the prototype's 0-100% (D9). Trees are grouped by current status, not status at the time. | c0 is a log-energy value and has no fixed scale. |
+| V5 | Historical records show energy, SNR, RSSI and prediction. The prototype's BFCC, CQCC, LPC and feature-magnitude panel are dropped. | Only MFCC is sent (R6). |
+| V6 | Web sends invite email itself with nodemailer. If sending fails, the owner still gets the link to share. | Tokens exist only at creation, so the worker can't send them. |
+| V7 | Accepting an invite for an existing account requires being logged in as that account; new accounts need a password of 10+ characters (Q-INVITE, assumed). | The token alone must never grant access to an existing account. |
+| V8 | CSV import is all or nothing, and lists every bad row by line. Exports stop at 200,000 rows and neutralize values that Excel would run as formulas. | A half-imported farm is hard to fix; tree labels are typed by users. |
+| V9 | Rotating a key also brings a revoked cluster head back. There's no separate un-revoke. | A revoked key may be compromised, so coming back must mean a new key. |
+| V10 | A node's cluster head is checked against the organization before anything else. | Otherwise the unique-LoRa error could reveal another organization's LoRa IDs. Found by a test. |
+| V11 | Password reset and changing your own password aren't built (Q-RESET). | Not asked for yet. **A forgotten password currently needs an administrator.** |
+| V12 | `docs/api/openapi.yaml` isn't generated yet. | Brief asks "if practical". Outstanding. |
 
 ## Tooling
 

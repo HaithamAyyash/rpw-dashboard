@@ -12,6 +12,7 @@ import {
   type Tree,
 } from "@/lib/ui/api";
 import { useCurrentOrg } from "./OrgContext";
+import { ErrorState, SkeletonGrid } from "./States";
 import { TreeCard } from "./TreeCard";
 
 const PAGE_SIZE = 48;
@@ -62,44 +63,6 @@ function StatCard({
         )}
       </div>
       <div className={`mt-1.5 text-[11px] ${noteClass}`}>{note}</div>
-    </div>
-  );
-}
-
-function SkeletonGrid({
-  count,
-  className,
-}: {
-  count: number;
-  className: string;
-}) {
-  return (
-    <>
-      {Array.from({ length: count }, (_, i) => (
-        <div
-          key={i}
-          aria-hidden="true"
-          className={`animate-pulse rounded-lg border border-line bg-card ${className}`}
-        />
-      ))}
-    </>
-  );
-}
-
-function ErrorState({ what, onRetry }: { what: string; onRetry: () => void }) {
-  return (
-    <div
-      role="alert"
-      className="col-span-full rounded-md border border-danger/30 bg-danger-bg p-6 text-center text-[13px]"
-    >
-      <p className="mb-2 text-text-1">Couldn&apos;t load {what}.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="rounded-sm border border-line-md px-3 py-1.5 text-[12px] text-text-1 hover:opacity-85"
-      >
-        Try again
-      </button>
     </div>
   );
 }

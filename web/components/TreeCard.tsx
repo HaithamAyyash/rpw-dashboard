@@ -1,5 +1,10 @@
 import type { OrgSettings, Tree } from "@/lib/ui/api";
-import { batteryPercent, directionsUrl, formatDateTime } from "@/lib/ui/format";
+import {
+  batteryClass,
+  batteryPercent,
+  directionsUrl,
+  formatDateTime,
+} from "@/lib/ui/format";
 import { StatusBadge } from "./StatusBadge";
 
 /** Colours follow the organization's own thresholds, not the prototype's fixed 25% / 55%. */
@@ -11,12 +16,6 @@ function bandClass(
   if (value >= org.alert_threshold) return kinds[2];
   if (value >= org.suspect_threshold) return kinds[1];
   return kinds[0];
-}
-
-function batteryClass(percent: number): string {
-  if (percent > 50) return "text-accent";
-  if (percent > 25) return "text-warn";
-  return "text-danger";
 }
 
 function Row({
@@ -114,7 +113,7 @@ export function TreeCard({ tree, org }: { tree: Tree; org: OrgSettings }) {
           {battery === null ? (
             <span className="text-text-3">No data yet</span>
           ) : (
-            <span className={batteryClass(battery)}>
+            <span className={batteryClass(battery).text}>
               {battery}% · {tree.battery_mv} mV
             </span>
           )}

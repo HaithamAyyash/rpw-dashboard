@@ -10,7 +10,13 @@ export type ErrorCode =
   | "not_found"
   | "invalid_query"
   | "invalid_credentials"
-  | "bad_origin";
+  | "bad_origin"
+  | "conflict"
+  | "invalid_value"
+  | "last_owner"
+  | "forbidden"
+  | "login_required"
+  | "wrong_account";
 
 export function errorResponse(
   status: number,

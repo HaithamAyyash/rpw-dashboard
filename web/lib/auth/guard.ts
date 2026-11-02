@@ -20,10 +20,34 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type SessionContext = { user: CurrentUser; memberships: Membership[] };
 export type OrgContext = SessionContext & { membership: Membership };
 
-/** CSRF check for state-changing requests: browsers send Origin and scripts can't forge it. */
+/**
+ * CSRF check for state-changing requests: browsers send Origin and other sites can't forge it.
+ * Production allows only APP_ORIGIN. Development (any http:// entry there) also allows the address
+ * the request arrived on, so an SSH or editor tunnel works on whatever port it picked: another
+ * site's page still sends its own Origin, which won't match.
+ */
 export function originAllowed(request: Request): boolean {
   const origin = request.headers.get("origin");
-  return origin !== null && allowedOrigins().includes(origin);
+  if (origin === null) return false;
+  const allowed = allowedOrigins();
+  if (allowed.includes(origin)) return true;
+  if (allowed.some((o) => o.startsWith("http://"))) {
+    const arrivedOn =
+      request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+    if (arrivedOn !== null && hostOf(origin) === arrivedOn) return true;
+  }
+  console.warn(
+    `refused request from origin ${origin} (host ${request.headers.get("host")})`,
+  );
+  return false;
+}
+
+function hostOf(origin: string): string | null {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
 }
 
 /** Every endpoint that needs a logged-in user goes through here. */

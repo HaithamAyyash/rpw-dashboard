@@ -55,7 +55,7 @@ def test_has_everything_the_brief_lists(conn, cfg, inbox, org):
     message = full(inbox()[0])
     assert message['Subject'] == '[NAKHEL] Infestation detected: T-1'
     text = message['Text']
-    for expected in ('Tree: T-1', 'Node (LoRa ID): 1000', 'Farm zone: Zone A', 'Confidence: ', 'Asia/Dubai',
+    for expected in ('Tree: T-1', 'Node (LoRa ID): 100', 'Farm zone: Zone A', 'Confidence: ', 'Asia/Dubai',
                      f'{cfg.app_base_url}/{org.slug}?q=T-1'):
         assert expected in text
 
@@ -90,7 +90,7 @@ def test_cluster_offline_emails_but_low_battery_doesnt(conn, cfg, inbox, make_or
 
 
 def test_line_break_in_a_tree_label_cant_inject_headers(conn, cfg, inbox, org):
-    node = org.add_node(2000, 'T-2\r\nBcc: attacker@evil.example')
+    node = org.add_node(200, 'T-2\r\nBcc: attacker@evil.example')
     org.measure(LOUD, node_id=node)
     org.measure(LOUD, node_id=node)
     while process_next(conn, StubClassifier(), cfg):

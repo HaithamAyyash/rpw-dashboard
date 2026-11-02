@@ -75,9 +75,13 @@ def world():
     now = datetime.now(timezone.utc).replace(microsecond=0)
     rng = np.random.default_rng(7)
     events = sim.plan_events(config, now - timedelta(days=3), now, rng)
-    outage_start = now - timedelta(hours=8)
-    report = sim.Simulator(config, WEB, rng).run(events, outage_start)
+    outage_start = now - timedelta(hours=24)  # always includes wake-ups, whatever the time of day
+    # Every buffered message twice, so the duplicate check can't pass or fail by chance.
+    report = sim.Simulator(config, WEB, rng, duplicate_rate=1.0).run(events, outage_start)
     yield {'config': config, 'a': a, 'b': b, 'events': events, 'report': report}
+    # The worker may still be busy if a run stops early, and it would block deleting these rows.
+    for org in (a, b):
+        wait_for(lambda org=org: stored_rows(org)[1] == 0, 'worker to finish before cleanup')
     sim.teardown(HOST, [org['slug'] for org in config['orgs']])
 
 
@@ -119,7 +123,7 @@ def test_dashboard_api_shows_the_infested_tree_only_to_its_org(world):
 
 def test_same_lora_id_stays_separate_between_organizations(world):
     rows = owner_query("""SELECT count(DISTINCT n.node_id) FROM nodes n JOIN organizations o USING (org_id)
-                          WHERE o.slug = ANY(%s) AND n.lora_id = 1000""",
+                          WHERE o.slug = ANY(%s) AND n.lora_id = 1""",
                        ([world['a']['slug'], world['b']['slug']],))
     assert rows == [(2,)]
 

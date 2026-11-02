@@ -20,9 +20,9 @@ export const measurementSchema = z.object({
     .number()
     .int()
     .min(0)
-    .max(65535)
+    .max(255)
     .describe(
-      "The node's 2-byte LoRa ID; unique only within this cluster head",
+      "The node's 1-byte LoRa ID; unique only within this cluster head",
     ),
   timestamp: isoInstant.describe(
     "When the node recorded the sample, ISO 8601 with a time zone",
@@ -56,3 +56,36 @@ export const measurementSchema = z.object({
 });
 
 export type Measurement = z.infer<typeof measurementSchema>;
+
+const smallCount = z.number().int().min(0).max(2_147_483_647);
+const uptimeSeconds = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const rssi = z.number().int().min(-200).max(20);
+
+/** POST /api/v1/ingest/node-health. Needs the firmware heartbeat (decision D2). */
+export const nodeHealthSchema = z.object({
+  node_id: z
+    .number()
+    .int()
+    .min(0)
+    .max(255)
+    .describe("The node's 1-byte LoRa ID"),
+  timestamp: isoInstant.describe("When the node sent the heartbeat"),
+  battery_mv: smallCount.optional().describe("Battery voltage in millivolts"),
+  rssi_dbm: rssi.optional().describe("Received signal strength in dBm"),
+  uptime_s: uptimeSeconds.optional().describe("Seconds since the node booted"),
+});
+
+/** POST /api/v1/ingest/cluster-health. The key identifies the cluster head. */
+export const clusterHealthSchema = z.object({
+  timestamp: isoInstant.describe("When the Pi took this reading"),
+  uptime_s: uptimeSeconds.optional().describe("Seconds since the Pi booted"),
+  rssi_dbm: rssi.optional().describe("Uplink signal strength in dBm"),
+  sd_free_mb: smallCount.optional().describe("Free SD card space in MB"),
+  uplink_type: z.enum(["wifi", "4g"]).optional().describe("Current uplink"),
+  buffered_count: smallCount
+    .optional()
+    .describe("Messages waiting in the SQLite buffer"),
+});
+
+export type NodeHealth = z.infer<typeof nodeHealthSchema>;
+export type ClusterHealth = z.infer<typeof clusterHealthSchema>;

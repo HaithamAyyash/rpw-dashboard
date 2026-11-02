@@ -98,7 +98,7 @@ def test_query_returns_no_rows_without_an_org(db, seeded, path):
     with db('nakhel_web') as cur:
         _, rows = run(cur, path, {'zone': None, 'status': None, 'q': None, 'label': None,
                                   'min_conf': None})
-    if path.stem in ('summary_cards', 'pipeline_latency'):
+    if path.stem in ('summary_cards', 'pipeline_latency', 'history_summary'):
         # Aggregates always produce one row; it must count nothing.
         assert rows[0][0] == 0
     else:

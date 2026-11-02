@@ -1,5 +1,5 @@
 -- Classification results over a period. GET /classifications?from=&to=&node_id=&label=&min_conf=&sort=
--- @params from:timestamptz to:timestamptz node_id:bigint label:text min_conf:real sort:text limit:int offset:int
+-- @params from:timestamptz to:timestamptz node_id:bigint label:text min_conf:real sort:text limit:int offset:int zone:text
 -- @returns node_id, lora_id, tree_label, timestamp, model_version, label, confidence, inference_ms, processed_at
 -- sort: time_desc (default) | confidence_desc
 SELECT c.node_id, n.lora_id, n.tree_label, c."timestamp", c.model_version, c.label, c.confidence,
@@ -11,6 +11,7 @@ WHERE c.org_id = current_org_id()
   AND ($3::bigint IS NULL OR c.node_id = $3)
   AND ($4::text IS NULL OR c.label = $4)
   AND ($5::real IS NULL OR c.confidence >= $5)
+  AND ($9::text IS NULL OR n.farm_zone = $9)
 ORDER BY
   CASE WHEN $6 = 'confidence_desc' THEN c.confidence END DESC,
   c."timestamp" DESC, c.node_id

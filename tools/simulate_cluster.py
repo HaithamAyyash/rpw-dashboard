@@ -38,7 +38,8 @@ from nakhel_fake.signals import C0_SPREAD, SEND_RATE, fake_mfcc
 from seed import delete_orgs
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent / '.sim_config.json'
-FIRST_LORA_ID = 1000
+FIRST_LORA_ID = 1
+MAX_NODES_PER_CLUSTER = 255  # LoRa IDs are 1 byte
 DUPLICATE_RATE = 0.1
 
 
@@ -162,10 +163,12 @@ def to_body(event, rng, with_optional):
 
 
 class Simulator:  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config, url, rng, speed=0.0, sleep=time.sleep, now=lambda: datetime.now(timezone.utc)):
+    def __init__(self, config, url, rng, speed=0.0, sleep=time.sleep, now=lambda: datetime.now(timezone.utc),
+                 duplicate_rate=DUPLICATE_RATE):
         self.url = url
         self.rng = rng
         self.speed = speed
+        self.duplicate_rate = duplicate_rate
         self.sleep = sleep
         self.now = now
         self.report = Report()
@@ -206,7 +209,7 @@ class Simulator:  # pylint: disable=too-many-instance-attributes
         """Back online: the whole backlog, some of it twice, as after a lost acknowledgement."""
         for key, body in buffered:
             self.send(key, body)
-            if self.rng.random() < DUPLICATE_RATE:
+            if self.rng.random() < self.duplicate_rate:
                 self.send(key, body)
 
 
@@ -228,6 +231,8 @@ def main(argv=None):
     parser.add_argument('--url', default=os.environ.get('WEB_URL', 'http://web:3000'))
     parser.add_argument('--host', default=os.environ.get('NAKHEL_DB_HOST', 'db'))
     args = parser.parse_args(argv)
+    if args.nodes > MAX_NODES_PER_CLUSTER:
+        parser.error(f'--nodes can be at most {MAX_NODES_PER_CLUSTER}: LoRa IDs are 1 byte')
 
     if args.teardown:
         config = json.loads(args.config.read_text())

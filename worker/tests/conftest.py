@@ -74,7 +74,7 @@ class Org:
                         (self.org_id, sha256(self.slug.encode()).hexdigest()))
             self.cluster_id = cur.fetchone()[0]
             cur.execute('COMMIT')
-        self.node_id = self.add_node(1000, 'T-1')
+        self.node_id = self.add_node(100, 'T-1')
         self.minutes = 0
 
     def add_node(self, lora_id, label):

@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "@/lib/db/pool";
 import { withOrg } from "@/lib/db/withOrg";
-import type { Measurement } from "@/lib/schemas/ingest";
+import type {
+  ClusterHealth,
+  Measurement,
+  NodeHealth,
+} from "@/lib/schemas/ingest";
 
 export type ClusterIdentity = { clusterId: string; orgId: string };
 
@@ -71,6 +75,55 @@ export async function storeMeasurement(
         m.msg_id ?? null,
         m.received_at ?? null,
         m.schema_version ?? 1,
+      ],
+    );
+    return rowCount === 1 ? "stored" : "duplicate";
+  });
+}
+
+export async function storeNodeHealth(
+  identity: ClusterIdentity,
+  h: NodeHealth,
+): Promise<StoreResult> {
+  return withOrg(identity.orgId, async (client) => {
+    const nodeId = await findNodeId(client, identity.clusterId, h.node_id);
+    if (nodeId === null) return "unknown_node";
+    const { rowCount } = await client.query(
+      `INSERT INTO node_health ("timestamp", org_id, node_id, battery_mv, rssi_dbm, uptime_s)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (node_id, "timestamp") DO NOTHING`,
+      [
+        h.timestamp,
+        identity.orgId,
+        nodeId,
+        h.battery_mv ?? null,
+        h.rssi_dbm ?? null,
+        h.uptime_s ?? null,
+      ],
+    );
+    return rowCount === 1 ? "stored" : "duplicate";
+  });
+}
+
+export async function storeClusterHealth(
+  identity: ClusterIdentity,
+  h: ClusterHealth,
+): Promise<StoreResult> {
+  return withOrg(identity.orgId, async (client) => {
+    const { rowCount } = await client.query(
+      `INSERT INTO cluster_health
+         ("timestamp", org_id, cluster_id, uptime_s, rssi_dbm, sd_free_mb, uplink_type, buffered_count)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (cluster_id, "timestamp") DO NOTHING`,
+      [
+        h.timestamp,
+        identity.orgId,
+        identity.clusterId,
+        h.uptime_s ?? null,
+        h.rssi_dbm ?? null,
+        h.sd_free_mb ?? null,
+        h.uplink_type ?? null,
+        h.buffered_count ?? null,
       ],
     );
     return rowCount === 1 ? "stored" : "duplicate";

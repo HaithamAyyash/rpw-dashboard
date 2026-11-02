@@ -7,8 +7,8 @@
     "node_id": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 65535,
-      "description": "The node's 2-byte LoRa ID; unique only within this cluster head"
+      "maximum": 255,
+      "description": "The node's 1-byte LoRa ID; unique only within this cluster head"
     },
     "timestamp": {
       "type": "string",

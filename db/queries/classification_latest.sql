@@ -1,5 +1,5 @@
 -- Classification screen default: latest result per node. GET /classifications
--- @params label:text min_conf:real sort:text limit:int offset:int
+-- @params label:text min_conf:real sort:text limit:int offset:int zone:text
 -- @returns node_id, lora_id, tree_label, timestamp, model_version, label, confidence, status, total_count
 -- sort: confidence_desc (default) | confidence_asc | time_desc | tree_asc
 SELECT n.node_id, n.lora_id, n.tree_label, s.last_classified AS "timestamp",
@@ -9,6 +9,7 @@ FROM nodes n
 JOIN node_status s ON s.org_id = n.org_id AND s.node_id = n.node_id
 WHERE n.org_id = current_org_id()
   AND s.classified_runs > 0
+  AND ($6::text IS NULL OR n.farm_zone = $6)
   AND ($1::text IS NULL OR s.last_label = $1)
   AND ($2::real IS NULL OR s.last_runs[1] >= $2)
 ORDER BY

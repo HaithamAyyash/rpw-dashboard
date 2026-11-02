@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { Client, type ClientBase } from "pg";
+import { newApiKey } from "@/lib/api-keys";
 import { hashApiKey } from "@/lib/ingest/store";
 
 // Admin scripts connect as the owner role, because they work before any organization is set.
@@ -24,10 +24,6 @@ export async function withAdmin<T>(
   }
 }
 
-export function newApiKey(): string {
-  return `nkh_${randomBytes(32).toString("base64url")}`;
-}
-
 /** "1000-1003,2000" -> [1000, 1001, 1002, 1003, 2000] */
 export function parseLoraIds(spec: string): number[] {
   const ids = spec.split(",").flatMap((part) => {
@@ -38,7 +34,7 @@ export function parseLoraIds(spec: string): number[] {
     if (last < first) throw new Error(`Bad LoRa ID range: "${part}"`);
     return Array.from({ length: last - first + 1 }, (_, i) => first + i);
   });
-  const bad = ids.find((id) => id > 65535);
+  const bad = ids.find((id) => id > 255);
   if (bad !== undefined) throw new Error(`LoRa ID out of range: ${bad}`);
   return [...new Set(ids)];
 }

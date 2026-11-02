@@ -54,7 +54,7 @@ describe("201 stored", () => {
     const json = await res.json();
     expect(json).toMatchObject({
       status: "stored",
-      node_id: 1000,
+      node_id: 100,
       timestamp: payload.timestamp,
     });
     expect(Date.parse(json.server_time)).not.toBeNaN();
@@ -111,8 +111,7 @@ describe("201 stored", () => {
       .toISOString()
       .replace(".000Z", "+04:00");
     expect(
-      (await send(org.apiKey, body({ node_id: 1001, timestamp: dubai })))
-        .status,
+      (await send(org.apiKey, body({ node_id: 101, timestamp: dubai }))).status,
     ).toBe(201);
     const rows = await ownerQuery(
       'SELECT 1 FROM acoustic_features WHERE org_id = $1 AND "timestamp" = $2',
@@ -151,7 +150,7 @@ describe("200 duplicate", () => {
     expect(repeat.status).toBe(200);
     expect(await repeat.json()).toMatchObject({
       status: "duplicate",
-      node_id: 1000,
+      node_id: 100,
       timestamp: payload.timestamp,
     });
     const rows = await ownerQuery<{ energy: number; snr_db: number | null }>(
@@ -193,12 +192,12 @@ describe("400 bad request", () => {
   const rows30x13 = mfcc();
   const cases: [string, unknown][] = [
     ["missing node_id", { timestamp: isoAgo(5), mfcc: rows30x13 }],
-    ["missing timestamp", { node_id: 1000, mfcc: rows30x13 }],
-    ["missing mfcc", { node_id: 1000, timestamp: isoAgo(5) }],
+    ["missing timestamp", { node_id: 100, mfcc: rows30x13 }],
+    ["missing mfcc", { node_id: 100, timestamp: isoAgo(5) }],
     ["node_id not an integer", body({ node_id: 1.5 })],
-    ["node_id a string", body({ node_id: "1000" })],
+    ["node_id a string", body({ node_id: "100" })],
     ["node_id below range", body({ node_id: -1 })],
-    ["node_id above range", body({ node_id: 65536 })],
+    ["node_id above range", body({ node_id: 256 })],
     ["29 rows", body({ mfcc: rows30x13.slice(0, 29) })],
     ["31 rows", body({ mfcc: [...rows30x13, rows30x13[0]] })],
     ["12 columns", body({ mfcc: rows30x13.map((r) => r.slice(0, 12)) })],
@@ -248,8 +247,8 @@ describe("400 bad request", () => {
   it.each([
     ["malformed JSON", "{not json"],
     ["empty body", ""],
-    ["NaN literal", '{"node_id":1000,"mfcc":[[NaN]]}'],
-    ["Infinity literal", '{"node_id":1000,"mfcc":[[Infinity]]}'],
+    ["NaN literal", '{"node_id":100,"mfcc":[[NaN]]}'],
+    ["Infinity literal", '{"node_id":100,"mfcc":[[Infinity]]}'],
   ])("%s", async (_name, raw) => {
     const res = await send(org.apiKey, raw, true);
     expect(res.status).toBe(400);
@@ -281,12 +280,12 @@ describe("400 bad request", () => {
 
   it("logs the reject for the organization", async () => {
     const own = await makeOrg();
-    await send(own.apiKey, body({ node_id: 1000, mfcc: [] }));
+    await send(own.apiKey, body({ node_id: 100, mfcc: [] }));
     const [row] = await rejects(own);
     expect(row).toMatchObject({
       error_code: "invalid_body",
       http_status: 400,
-      lora_id: 1000,
+      lora_id: 100,
     });
   });
 
@@ -397,7 +396,7 @@ describe("413 too large", () => {
 describe("422 unknown node", () => {
   it("rejects and logs the whole body", async () => {
     const own = await makeOrg();
-    const payload = body({ node_id: 4242 });
+    const payload = body({ node_id: 42 });
     const res = await send(own.apiKey, payload);
     expect(res.status).toBe(422);
     const json = await res.json();
@@ -407,7 +406,7 @@ describe("422 unknown node", () => {
     expect(row).toMatchObject({
       error_code: "unknown_node",
       http_status: 422,
-      lora_id: 4242,
+      lora_id: 42,
     });
     expect(JSON.parse(row!.request_body)).toEqual(payload);
   });
@@ -415,26 +414,26 @@ describe("422 unknown node", () => {
   it("a retired node's LoRa ID is unknown", async () => {
     const own = await makeOrg();
     await ownerQuery(
-      "UPDATE nodes SET active = false WHERE org_id = $1 AND lora_id = 1000",
+      "UPDATE nodes SET active = false WHERE org_id = $1 AND lora_id = 100",
       [own.orgId],
     );
-    expect((await send(own.apiKey, body({ node_id: 1000 }))).status).toBe(422);
+    expect((await send(own.apiKey, body({ node_id: 100 }))).status).toBe(422);
   });
 
   it("a node under another cluster head of the same org is unknown to this key", async () => {
-    const own = await makeOrg([1000]);
+    const own = await makeOrg([100]);
     await registerCluster({
       orgSlug: own.slug,
       name: "CH-02",
-      loraIds: [2000],
+      loraIds: [200],
     });
-    expect((await send(own.apiKey, body({ node_id: 2000 }))).status).toBe(422);
+    expect((await send(own.apiKey, body({ node_id: 200 }))).status).toBe(422);
   });
 });
 
 describe("two organizations with the same LoRa IDs", () => {
   it("keeps them separate", async () => {
-    const payloadA = body({ node_id: 1000, mfcc: mfcc(-100) });
+    const payloadA = body({ node_id: 100, mfcc: mfcc(-100) });
     const payloadB = { ...payloadA, mfcc: mfcc(-200) }; // same LoRa ID, same timestamp
     expect((await send(org.apiKey, payloadA)).status).toBe(201);
     expect((await send(other.apiKey, payloadB)).status).toBe(201);
@@ -472,7 +471,7 @@ describe("two organizations with the same LoRa IDs", () => {
   it("a reject is visible only to the organization that caused it", async () => {
     const a = await makeOrg();
     const b = await makeOrg();
-    await send(a.apiKey, body({ node_id: 777 }));
+    await send(a.apiKey, body({ node_id: 77 }));
     expect(await rejects(a)).toHaveLength(1);
     expect(await rejects(b)).toHaveLength(0);
   });
@@ -516,24 +515,23 @@ describe("runs as the unprivileged web role", () => {
 
 describe("register-cluster", () => {
   it("parses LoRa ID ranges", () => {
-    expect(parseLoraIds("1000-1002, 2000,1001")).toEqual([
-      1000, 1001, 1002, 2000,
-    ]);
-    expect(() => parseLoraIds("70000")).toThrow();
+    expect(parseLoraIds("100-102, 200,101")).toEqual([100, 101, 102, 200]);
+    expect(() => parseLoraIds("256")).toThrow();
+    expect(parseLoraIds("255")).toEqual([255]);
     expect(() => parseLoraIds("5-1")).toThrow();
     expect(() => parseLoraIds("abc")).toThrow();
   });
 
   it("adds nodes to an existing cluster head without changing its key", async () => {
-    const own = await makeOrg([1000]);
+    const own = await makeOrg([100]);
     const result = await registerCluster({
       orgSlug: own.slug,
       name: "CH-01",
-      loraIds: [3000],
+      loraIds: [30],
     });
     expect(result.apiKey).toBeNull();
     expect(result.clusterId).toBe(own.clusterId);
-    expect((await send(own.apiKey, body({ node_id: 3000 }))).status).toBe(201);
+    expect((await send(own.apiKey, body({ node_id: 30 }))).status).toBe(201);
   });
 
   it("fails for an unknown organization", async () => {

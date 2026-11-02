@@ -147,14 +147,29 @@ export function TopBar({
           ))}
         </select>
         <Clock timeZone={org.timezone} />
-        <button
-          type="button"
-          disabled
-          title="CSV export isn't built yet"
-          className="rounded-sm bg-accent px-4 py-[7px] text-[12px] font-medium text-accent-text disabled:opacity-40"
-        >
-          Export report
-        </button>
+        <details className="relative">
+          <summary className="cursor-pointer list-none rounded-sm bg-accent px-4 py-[7px] text-[12px] font-medium text-accent-text hover:opacity-85 [&::-webkit-details-marker]:hidden">
+            Export report
+          </summary>
+          <div className="absolute right-0 z-20 mt-1 w-52 rounded-sm border border-line-md bg-card-alt p-1 shadow-lg">
+            <p className="px-2.5 py-1 text-[10px] tracking-[0.5px] text-text-3 uppercase">
+              CSV, last 30 days
+            </p>
+            {[
+              ["features", "Feature records"],
+              ["classifications", "Classifications"],
+              ["alerts", "Alerts"],
+            ].map(([file, label]) => (
+              <a
+                key={file}
+                href={`/api/v1/orgs/${org.org_id}/export/${file}.csv${zone ? `?zone=${encodeURIComponent(zone)}` : ""}`}
+                className="block rounded-sm px-2.5 py-1.5 text-[12px] text-text-1 hover:bg-white/5"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </details>
         <button
           type="button"
           onClick={logout}

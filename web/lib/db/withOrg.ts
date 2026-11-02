@@ -21,6 +21,15 @@ export async function withUser<T>(
   return withContext({ userId }, fn);
 }
 
+/** Acting for one user inside one organization, e.g. joining it from an invite. */
+export async function withOrgAndUser<T>(
+  orgId: string,
+  userId: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return withContext({ orgId, userId }, fn);
+}
+
 async function withContext<T>(
   context: { orgId?: string; userId?: string },
   fn: (client: PoolClient) => Promise<T>,

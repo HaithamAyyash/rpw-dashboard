@@ -95,6 +95,12 @@ services:
       DATABASE_URL: postgres://nakhel_web:${NAKHEL_WEB_PASSWORD}@db:5432/nakhel?sslmode=disable
       SESSION_SECRET: ${SESSION_SECRET}
       APP_ORIGIN: ${APP_ORIGIN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      EMAIL_FROM: ${EMAIL_FROM}
     ports:
       - "127.0.0.1:${NAKHEL_WEB_PORT:-3100}:3000"
 

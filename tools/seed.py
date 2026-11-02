@@ -14,6 +14,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from math import ceil
 from pathlib import Path
 
 import numpy as np
@@ -23,11 +24,13 @@ from argon2 import PasswordHasher
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # pylint: disable=wrong-import-position
-from nakhel_fake.layout import grid_position, tree_label
+from nakhel_fake.layout import grid_position, row_letters, tree_label
 from nakhel_fake.schedule import slot_offset_seconds, wake_times
 from nakhel_fake.signals import SEND_RATE, confidence_curve, literal_pool
 
 MODEL_VERSION = 'stub-0.1-FAKE'
+FIRST_LORA_ID = 1
+MAX_NODES_PER_CLUSTER = 250  # LoRa IDs are 1 byte
 LOW_BATTERY_MV = 3400
 OFFLINE_DAYS = 4
 
@@ -37,7 +40,7 @@ ORGS = [
     {'name': 'Oasis Palm Demo Co', 'slug': 'oasis-palm-demo', 'clusters': 1, 'nodes': 28,
      'origin': (24.1300, 55.8010)},
 ]
-SCALE_ORG = {'name': 'Scale Test Org', 'slug': 'scale-test', 'clusters': 8, 'nodes': 8000,
+SCALE_ORG = {'name': 'Scale Test Org', 'slug': 'scale-test', 'clusters': 32, 'nodes': 8000,
              'origin': (24.3000, 55.6000)}
 ALL_SLUGS = [org['slug'] for org in ORGS] + [SCALE_ORG['slug']]
 SHARED_USER_EMAIL = 'consultant@nakhel-demo.example'
@@ -74,9 +77,9 @@ def delete_orgs(cur, slugs):
     cur.execute('DELETE FROM organization_members WHERE org_id = ANY(%s::uuid[])', (org_ids,))
     cur.execute('ALTER TABLE organization_members ENABLE TRIGGER organization_members_last_owner')
     cur.execute('DELETE FROM organizations WHERE org_id = ANY(%s::uuid[])', (org_ids,))
-    cur.execute('DELETE FROM users u WHERE (email LIKE %s OR email LIKE %s OR email LIKE %s) '
+    cur.execute('DELETE FROM users u WHERE (email LIKE %s OR email LIKE %s OR email = ANY(%s)) '
                 'AND NOT EXISTS (SELECT 1 FROM organization_members m WHERE m.user_id = u.user_id)',
-                ('%-demo.example', '%@scale-test.example', '%@sim-%.example'))
+                ('%-demo.example', '%@scale-test.example', [f'owner@{slug}.example' for slug in slugs]))
 
 
 def create_user(cur, email, name, password_hash):
@@ -98,13 +101,13 @@ def create_org(cur, spec, password_hash):
 
 
 def create_devices(cur, org_id, spec, now):
-    """Cluster heads and nodes. LoRa IDs restart at 1000 in every organization and every
+    """Cluster heads and nodes. LoRa IDs restart at 1 in every organization and every
     cluster head on purpose: they are only unique per cluster head."""
     clusters, nodes = [], []
     per_cluster = spec['nodes'] // spec['clusters']
     columns = max(6, int(per_cluster ** 0.5))
     for c_index in range(spec['clusters']):
-        zone = f'Zone {chr(65 + c_index)}'
+        zone = f'Zone {row_letters(c_index)}'
         count = per_cluster + (spec['nodes'] % spec['clusters'] if c_index == 0 else 0)
         origin = (spec['origin'][0] + c_index * 0.01, spec['origin'][1])
         center = grid_position(count // 2, columns, origin)
@@ -122,8 +125,8 @@ def create_devices(cur, org_id, spec, now):
         rows = []
         for n_index in range(count):
             lat, lon = grid_position(n_index, columns, origin)
-            prefix = '' if spec['clusters'] == 1 else f'{chr(65 + c_index)}'
-            rows.append((org_id, cluster_id, 1000 + n_index,
+            prefix = '' if spec['clusters'] == 1 else row_letters(c_index)
+            rows.append((org_id, cluster_id, FIRST_LORA_ID + n_index,
                          f'{tree_label(n_index, columns)}{prefix}', zone,
                          (now - timedelta(days=180)).date(), lat, lon))
         psycopg2.extras.execute_values(
@@ -319,7 +322,7 @@ def seed_org(cur, spec, password_hash, shared_user_id, now, days, rng, pool_size
                      'CH-02: SD card below 1,024 MB free', now))
 
     # The unknown node a Pi keeps reporting; the 422 row Settings will show later.
-    lora_unknown = 60000
+    lora_unknown = 200
     copy_rows(cur, 'ingest_rejects', ('time', 'org_id', 'cluster_id', 'lora_id', 'http_status',
                                       'error_code', 'request_body'),
               [((now - timedelta(hours=h)).isoformat(), org_id, clusters[0], lora_unknown, 422,
@@ -350,7 +353,8 @@ def main(argv=None):
         cur.execute('SELECT slug FROM organizations WHERE slug = ANY(%s)', (ALL_SLUGS,))
         existing = {row[0] for row in cur.fetchall()}
         if args.scale:
-            specs = [(dict(SCALE_ORG, nodes=args.nodes), args.scale_days, 500)]
+            clusters = max(1, ceil(args.nodes / MAX_NODES_PER_CLUSTER))
+            specs = [(dict(SCALE_ORG, nodes=args.nodes, clusters=clusters), args.scale_days, 500)]
         else:
             specs = [(org, args.days, 40) for org in ORGS]
         clash = existing & {spec[0]['slug'] for spec in specs}

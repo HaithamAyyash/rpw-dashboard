@@ -105,14 +105,6 @@ test("another organization's pages can't be opened", async ({ page }) => {
   await expect(page.getByText("Oasis Palm Demo Co")).toHaveCount(0);
 });
 
-test("navigation works, and unbuilt screens say so", async ({ page }) => {
-  await logIn(page, "owner@al-ain-demo.example");
-  await expect(page).toHaveURL(/\/al-ain-demo$/);
-  await page.getByRole("link", { name: "Alert log" }).click();
-  await expect(page).toHaveURL(/\/al-ain-demo\/alerts$/);
-  await expect(page.getByText("This screen isn't built yet.")).toBeVisible();
-});
-
 test("logging out ends the session", async ({ page }) => {
   await logIn(page, "owner@al-ain-demo.example");
   await expect(page).toHaveURL(/\/al-ain-demo$/);

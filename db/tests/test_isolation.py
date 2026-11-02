@@ -180,7 +180,7 @@ def test_same_lora_id_in_two_orgs_stays_two_nodes(db, orgs):
     assert a.node_id != b.node_id
     for org in (a, b):
         with db('nakhel_web', org=org.org_id) as cur:
-            cur.execute('SELECT node_id FROM nodes WHERE cluster_id = %s AND lora_id = 1000',
+            cur.execute('SELECT node_id FROM nodes WHERE cluster_id = %s AND lora_id = 100',
                         (org.cluster_id,))
             assert [r[0] for r in cur.fetchall()] == [org.node_id]
 
@@ -200,7 +200,7 @@ class TestApiKeyLookup:
             cur.execute('SELECT cluster_id, org_id FROM ingest_auth(%s)', (key_hash(a.raw_key),))
             cluster_id, org_id = cur.fetchone()
             cur.execute("SELECT set_config('app.current_org', %s, true)", (str(org_id),))
-            cur.execute('SELECT count(*) FROM nodes WHERE cluster_id = %s AND lora_id = 1000',
+            cur.execute('SELECT count(*) FROM nodes WHERE cluster_id = %s AND lora_id = 100',
                         (b.cluster_id,))
             assert cur.fetchone()[0] == 0
             with pytest.raises(errors.InsufficientPrivilege):

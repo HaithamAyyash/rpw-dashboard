@@ -97,7 +97,7 @@ class TestNodeCurrentStaysCorrect:
         a, _ = orgs
         with db('nakhel_web', org=a.org_id) as cur:
             cur.execute("INSERT INTO nodes (org_id, cluster_id, lora_id, tree_label) "
-                        "VALUES (%s, %s, 4242, 'New') RETURNING node_id", (a.org_id, a.cluster_id))
+                        "VALUES (%s, %s, 42, 'New') RETURNING node_id", (a.org_id, a.cluster_id))
             node_id = cur.fetchone()[0]
             cur.execute('SELECT status FROM node_status WHERE node_id = %s', (node_id,))
             assert cur.fetchone()[0] == 'unknown'

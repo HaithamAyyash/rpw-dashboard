@@ -22,9 +22,13 @@ export default function LoginPage() {
         }),
       });
       if (response.ok) {
+        const next =
+          new URLSearchParams(window.location.search).get("next") ?? "/";
+        // Only same-site paths, so a crafted link can't send someone elsewhere after login.
+        const safe =
+          next.startsWith("/") && !next.startsWith("//") ? next : "/";
         // A full page load on purpose: it drops anything cached from the previous session.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.assign("/");
+        window.location.assign(safe);
         return;
       }
       setError(

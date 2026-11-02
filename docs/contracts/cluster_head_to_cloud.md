@@ -18,7 +18,7 @@ Each cluster head has its own key, created when it's registered and shown once. 
 
 ```json
 {
-  "node_id": 1042,
+  "node_id": 42,
   "timestamp": "2026-10-24T18:00:04Z",
   "mfcc": [
     [-312.4, 41.2, -3.7, 12.9, -8.1, 5.5, -2.2, 3.0, -1.4, 0.9, -0.6, 0.3, -0.2],
@@ -29,7 +29,7 @@ Each cluster head has its own key, created when it's registered and shown once. 
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `node_id` | Yes | integer 0–65535 | The node's LoRa ID. Unique only within this cluster head, and the node must already be registered under it |
+| `node_id` | Yes | integer 0–255 | The node's LoRa ID. Unique only within this cluster head, and the node must already be registered under it |
 | `timestamp` | Yes | ISO 8601 with time and zone | When the node recorded the sample. `Z` preferred; a bare date or local time is refused |
 | `mfcc` | Yes | 30 × 13 numbers | Row = frame, column = coefficient. Magnitude up to 3.4e38; stored as 32-bit floats |
 | `msg_id` | No | UUID | ID of the row in your SQLite buffer |
@@ -90,7 +90,7 @@ An error body looks like this. `details` is present only on `invalid_body`.
 Register a cluster head (the key prints once), then send a measurement:
 
 ```bash
-./db.sh web npm run register-cluster -- --org al-ain-demo --name CH-TEST --nodes 1000-1003
+./db.sh web npm run register-cluster -- --org al-ain-demo --name CH-TEST --nodes 1-4
 ```
 
 ```bash
@@ -99,11 +99,31 @@ MFCC=$(python3 -c "import json; print(json.dumps([[-312.4]+[1.5]*12]*30))")
 curl -i http://127.0.0.1:3100/api/v1/ingest/measurements \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"node_id\": 1000, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"mfcc\": $MFCC}"
+  -d "{\"node_id\": 1, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"mfcc\": $MFCC}"
 ```
 
 Run the same `curl` with the same timestamp to see `200 duplicate`.
 
+## `POST /api/v1/ingest/node-health`
+
+Forwards a node's heartbeat. The authentication, retry rules and error codes are the same as for measurements. The body rules are in [`node_health.schema.json`](node_health.schema.json). **This needs the firmware heartbeat (decision D2), which doesn't exist yet.** Until it does, the dashboard shows "no data yet" for battery and uptime.
+
+```json
+{ "node_id": 42, "timestamp": "2026-10-24T22:00:04Z", "battery_mv": 3900, "rssi_dbm": -101, "uptime_s": 86400 }
+```
+
+Only `node_id` and `timestamp` are required. `(node, timestamp)` identifies a heartbeat, so retries are safe. A node with heartbeats counts as offline after 56 hours of silence.
+
+## `POST /api/v1/ingest/cluster-health`
+
+The Pi's own status; the key says which cluster head it is. The body rules are in [`cluster_health.schema.json`](cluster_health.schema.json). Send one every few minutes: once a cluster head has reported, 15 minutes of silence raises a critical `cluster_offline` alert and emails the owners.
+
+```json
+{ "timestamp": "2026-10-24T22:00:04Z", "uptime_s": 86400, "rssi_dbm": -70, "sd_free_mb": 18000, "uplink_type": "4g", "buffered_count": 3 }
+```
+
+Only `timestamp` is required. `uplink_type` is `wifi` or `4g`.
+
 ## Not available yet
 
-`POST /api/v1/ingest/node-health`, `POST /api/v1/ingest/cluster-health` and a batch endpoint are planned. Don't build against them yet.
+A batch endpoint is planned only if flushing a backlog turns out to be slow. Don't build against it yet.

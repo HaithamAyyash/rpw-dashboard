@@ -63,17 +63,17 @@ let cookieA: string;
 let cookieB: string;
 
 beforeAll(async () => {
-  a = await makeOrg([1000, 1001, 1002]);
-  b = await makeOrg([1000, 1001]);
+  a = await makeOrg([100, 101, 102]);
+  b = await makeOrg([100, 101]);
   await registerCluster({
     orgSlug: a.slug,
     name: "CH-02",
     farmZone: "Zone Z",
-    loraIds: [5000],
+    loraIds: [50],
   });
-  await addRuns(a, 1000, [0.1, 0.1, 0.1]);
-  await addRuns(a, 1001, [0.6, 0.6, 0.6]);
-  await addRuns(a, 1002, [0.9, 0.9, 0.9]);
+  await addRuns(a, 100, [0.1, 0.1, 0.1]);
+  await addRuns(a, 101, [0.6, 0.6, 0.6]);
+  await addRuns(a, 102, [0.9, 0.9, 0.9]);
   cookieA = await cookieFor(a);
   cookieB = await cookieFor(b);
 });
@@ -147,6 +147,66 @@ describe("login", () => {
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
+});
+
+describe("origin check", () => {
+  const attempt = (headers: Record<string, string>) =>
+    login(
+      new Request(`${BASE}/auth/login`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email: "nobody@test.example", password: "x" }),
+      }),
+    ).then((r) => r.status);
+
+  it("in development, allows any port or tunnel the request really arrived on", async () => {
+    expect(
+      await attempt({
+        origin: "http://localhost:3101",
+        host: "localhost:3101",
+      }),
+    ).toBe(401);
+    expect(
+      await attempt({
+        origin: "https://abc.devtunnels.ms",
+        "x-forwarded-host": "abc.devtunnels.ms",
+      }),
+    ).toBe(401);
+  });
+
+  it("in development, still refuses another site", async () => {
+    expect(
+      await attempt({ origin: "https://evil.example", host: "localhost:3100" }),
+    ).toBe(403);
+    expect(await attempt({ origin: "not a url", host: "localhost:3100" })).toBe(
+      403,
+    );
+    expect(await attempt({ host: "localhost:3100" })).toBe(403);
+  });
+
+  it("in production, allows only APP_ORIGIN, whatever the request says", async () => {
+    const saved = process.env.APP_ORIGIN;
+    process.env.APP_ORIGIN = "https://nakhel.example.com";
+    try {
+      expect(
+        await attempt({
+          origin: "https://nakhel.example.com",
+          host: "nakhel.example.com",
+        }),
+      ).toBe(401);
+      expect(
+        await attempt({ origin: "https://evil.example", host: "evil.example" }),
+      ).toBe(403);
+      expect(
+        await attempt({
+          origin: "http://localhost:3101",
+          host: "localhost:3101",
+        }),
+      ).toBe(403);
+    } finally {
+      process.env.APP_ORIGIN = saved;
+    }
   });
 });
 
@@ -289,9 +349,9 @@ describe("GET /summary", () => {
   });
 
   it("reports the change since yesterday", async () => {
-    const own = await makeOrg([1000]);
+    const own = await makeOrg([100]);
     const cookie = await cookieFor(own);
-    await addRuns(own, 1000, [0.6, 0.6, 0.6]); // all recent, so yesterday it wasn't suspected
+    await addRuns(own, 100, [0.6, 0.6, 0.6]); // all recent, so yesterday it wasn't suspected
     const res = await getSummary(
       get(`/orgs/${own.orgId}/summary`, cookie),
       ctx(own.orgId),
@@ -318,7 +378,7 @@ describe("GET /trees", () => {
     const json = await trees("?status=alert");
     expect(json.total).toBe(1);
     expect(json.items[0]).toMatchObject({
-      lora_id: 1002,
+      lora_id: 102,
       status: "alert",
       avg_confidence: 0.9,
       measurements_24h: 0,
@@ -334,7 +394,7 @@ describe("GET /trees", () => {
     expect((await trees(`?zone=${encodeURIComponent("Zone Z")}`)).total).toBe(
       1,
     );
-    expect((await trees("?q=5000")).total).toBe(1);
+    expect((await trees("?q=50")).total).toBe(1);
     expect((await trees("?q=CH-02")).total).toBe(1);
     expect((await trees("?q=nothing-like-this")).items).toEqual([]);
   });
@@ -364,8 +424,8 @@ describe("GET /trees", () => {
   );
 
   it("the same LoRa ID shows each organization only its own node", async () => {
-    const ofA = await trees("?q=1000", a, cookieA);
-    const ofB = await trees("?q=1000", b, cookieB);
+    const ofA = await trees("?q=100", a, cookieA);
+    const ofB = await trees("?q=100", b, cookieB);
     expect(ofA.total).toBe(1);
     expect(ofB.total).toBe(1);
     expect(ofA.items[0].node_id).not.toBe(ofB.items[0].node_id);
@@ -386,8 +446,8 @@ describe("GET /zones", () => {
 
 describe("a user in several organizations", () => {
   it("can reach both, and leaving one closes it immediately", async () => {
-    const x = await makeOrg([1000]);
-    const y = await makeOrg([1000]);
+    const x = await makeOrg([100]);
+    const y = await makeOrg([100]);
     const [user] = await ownerQuery<{ user_id: string }>(
       "SELECT user_id FROM users WHERE email = $1",
       [`${x.slug}@test.example`],

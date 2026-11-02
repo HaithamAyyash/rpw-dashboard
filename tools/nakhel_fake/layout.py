@@ -11,12 +11,17 @@ def grid_position(index, columns, origin=(AL_AIN_LAT, AL_AIN_LON)):
             round(origin[1] + col * PALM_SPACING_DEG, 6))
 
 
-def tree_label(index, columns):
-    """E.g. PLM-A-07. Rows past Z continue as AA, AB, ..."""
-    row, col = divmod(index, columns)
+def row_letters(index):
+    """0 -> A, 25 -> Z, 26 -> AA, ..."""
     letters = ''
-    row += 1
-    while row:
-        row, rem = divmod(row - 1, 26)
+    index += 1
+    while index:
+        index, rem = divmod(index - 1, 26)
         letters = chr(65 + rem) + letters
-    return f'PLM-{letters}-{col + 1:02d}'
+    return letters
+
+
+def tree_label(index, columns):
+    """E.g. PLM-A-07."""
+    row, col = divmod(index, columns)
+    return f'PLM-{row_letters(row)}-{col + 1:02d}'

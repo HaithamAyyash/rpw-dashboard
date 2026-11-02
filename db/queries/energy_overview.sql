@@ -1,6 +1,6 @@
 -- Overlay chart: healthy average vs suspected vs alert. GET /energy/overview?from=&to=&bucket=
 -- Trees are grouped by their CURRENT status, not their status at the time of the measurement.
--- @params from:timestamptz to:timestamptz bucket:interval
+-- @params from:timestamptz to:timestamptz bucket:interval zone:text
 -- @returns bucket, status, avg_energy, nodes, measurements
 -- Aggregate first (index-only, so no MFCC is loaded), then attach status. MATERIALIZED stops the
 -- planner undoing this: it underestimates the status filter and would look up node by node.
@@ -9,6 +9,8 @@ WITH per_node AS MATERIALIZED (
          sum(f.energy) AS energy_sum, count(*) AS measurements
   FROM acoustic_features f
   WHERE f.org_id = current_org_id()
+    AND ($4::text IS NULL OR f.node_id IN (
+      SELECT n.node_id FROM nodes n WHERE n.org_id = current_org_id() AND n.farm_zone = $4))
     AND f."timestamp" >= $1 AND f."timestamp" < $2
   GROUP BY 1, 2
 )
