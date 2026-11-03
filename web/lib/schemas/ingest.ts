@@ -14,8 +14,10 @@ const finiteReal = z.number().min(-REAL_MAX).max(REAL_MAX);
 // offset: true requires a time zone (Z or +04:00). A bare date or local time is rejected.
 const isoInstant = z.iso.datetime({ offset: true });
 
+const MODEL_VERSION = /^[A-Za-z0-9._-]{1,64}$/;
+
 /** Source of truth for the request body; docs/contracts/measurement.schema.json is generated. */
-export const measurementSchema = z.object({
+const measurementFields = z.object({
   node_id: z
     .number()
     .int()
@@ -30,7 +32,23 @@ export const measurementSchema = z.object({
   mfcc: z
     .array(z.array(finiteReal).length(MFCC_COEFFS))
     .length(MFCC_FRAMES)
-    .describe("30 rows (frames) of 13 numbers (coefficients)"),
+    .optional()
+    .describe(
+      "30 rows (frames) of 13 numbers (coefficients), for the server's model. Send this or confidence, not both",
+    ),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      "Probability of infestation from 0 to 1, from a model on the node. Send this or mfcc, not both",
+    ),
+  model_version: z
+    .string()
+    .regex(MODEL_VERSION)
+    .optional()
+    .describe("The node's model. Required with confidence, and only with it"),
   msg_id: z
     .uuid()
     .optional()
@@ -53,6 +71,23 @@ export const measurementSchema = z.object({
     .max(32767)
     .optional()
     .describe("Payload version; defaults to 1"),
+});
+
+export const measurementSchema = measurementFields.superRefine((m, ctx) => {
+  if ((m.mfcc === undefined) === (m.confidence === undefined)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["confidence"],
+      message: "Send exactly one of mfcc and confidence",
+    });
+  }
+  if ((m.confidence === undefined) !== (m.model_version === undefined)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["model_version"],
+      message: "model_version goes with confidence, and only with it",
+    });
+  }
 });
 
 export type Measurement = z.infer<typeof measurementSchema>;

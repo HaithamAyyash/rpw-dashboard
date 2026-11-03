@@ -139,14 +139,16 @@ Triggers refuse removing the last owner, and refuse committing a new organizatio
 |---|---|---|
 | timestamp | timestamptz | When the node recorded the sample |
 | org_id, node_id, cluster_id | FK | Internal IDs |
-| mfcc | real[][] | 30 frames × 13 coefficients, all finite |
+| mfcc | real[] | 30 × 13 matrix for the server's model. Empty when the row holds a result from a node |
+| confidence | real | P(infested) from a model on the node. Exactly one of this and `mfcc` is set |
+| model_version | text | The node's model; set only with `confidence` |
 | snr_db | real, nullable | Decibels |
 | rssi_dbm | int, nullable | dBm |
 | msg_id | uuid, nullable | Row ID in the Pi's SQLite buffer |
 | received_at | timestamptz, nullable | When the Pi received the LoRa packet |
 | schema_version | smallint | Payload version, default 1 |
 | ingested_at | timestamptz | Set by the server |
-| energy | real, generated | Mean of c0 over the frames, a log-energy value with no fixed scale (decision A4) |
+| energy | real, generated | Mean of c0 over the frames, a log-energy value with no fixed scale (decision A4). Empty when there is no matrix |
 | status | text | `pending`, `classified` or `failed`. Always starts `pending` |
 
 **classification_results** · 1 year · unique (node_id, timestamp, model_version)

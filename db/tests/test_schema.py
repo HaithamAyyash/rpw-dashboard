@@ -29,7 +29,7 @@ def test_all_tables_exist(db):
 def test_all_migrations_recorded(db):
     with db('postgres') as cur:
         cur.execute('SELECT count(*) FROM schema_migrations')
-        assert cur.fetchone()[0] == 11
+        assert cur.fetchone()[0] == 12
 
 
 def test_hypertables(db):

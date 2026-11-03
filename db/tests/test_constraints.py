@@ -254,3 +254,32 @@ def test_health_values(db, orgs):
     expect_rejected(db, errors.CheckViolation,
                     'INSERT INTO cluster_health ("timestamp", org_id, cluster_id, uplink_type) '
                     "VALUES (%s, %s, %s, 'pigeon')", (NOW, a.org_id, a.cluster_id))
+
+
+NODE_RESULT_SQL = ('INSERT INTO acoustic_features '
+                   '("timestamp", org_id, node_id, cluster_id, mfcc, confidence, model_version) '
+                   'VALUES (now(), %s, %s, %s, %s, %s, %s)')
+
+
+def test_node_result_needs_no_matrix_and_has_no_energy(db, orgs):
+    a, _ = orgs
+    with db('nakhel_web', org=a.org_id) as cur:
+        cur.execute(NODE_RESULT_SQL + ' RETURNING energy, status',
+                    (a.org_id, a.node_id, a.cluster_id, None, 0.85, 'node-1.0'))
+        assert cur.fetchone() == (None, 'pending')
+
+
+@pytest.mark.parametrize('matrix,confidence,model', [
+    (None, None, None),      # nothing at all
+    (True, 0.5, 'node-1'),   # both
+    (None, 0.5, None),       # a result that doesn't say which model
+    (True, None, 'node-1'),  # a model version on a matrix
+    (None, 1.5, 'node-1'),   # above 1
+    (None, -0.1, 'node-1'),  # below 0
+    (None, 0.5, ''),         # empty version
+    (None, 0.5, 'a b'),      # unsafe version
+])
+def test_bad_payload_combinations(db, orgs, matrix, confidence, model):
+    a, _ = orgs
+    expect_rejected(db, errors.CheckViolation, NODE_RESULT_SQL,
+                    (a.org_id, a.node_id, a.cluster_id, mfcc_matrix() if matrix else None, confidence, model))

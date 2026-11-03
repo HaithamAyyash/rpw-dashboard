@@ -74,6 +74,22 @@ case "${1:-help}" in
     docker compose up -d --wait db mailpit
     docker compose up -d --wait --build web worker
     tools pytest tools/tests_integration -q "$@" ;;
+  # Firmware: compile for the ESP32. Creates a placeholder secrets.h on first use (git-ignored).
+  firmware-build)
+    shift
+    [ -f firmware/cluster_head/include/secrets.h ] || cp firmware/cluster_head/include/secrets.example.h firmware/cluster_head/include/secrets.h
+    docker compose --profile tools build firmware
+    docker compose --profile tools run --rm firmware pio run "$@" ;;
+  # Firmware: unit tests, then the ARQ engine against the running API with faults injected.
+  test-firmware)
+    shift
+    docker compose --profile tools build firmware tools
+    docker compose --profile tools run --rm firmware pio test -e native
+    docker compose --profile tools run --rm firmware g++ -std=gnu++17 -O1 -Wall -Wextra -static -pthread \
+      -Ilib/nakhel_uplink/src host/host_main.cpp lib/nakhel_uplink/src/payload.cpp \
+      lib/nakhel_uplink/src/response.cpp lib/nakhel_uplink/src/uplink.cpp -o host/uplink_host.bin
+    docker compose up -d --wait db web worker mailpit
+    tools pytest firmware/cluster_head/test_integration -q "$@" ;;
   # Browser tests against the running app. Needs: ./db.sh seed and docker compose up -d web
   e2e)
     shift; docker compose --profile tools run --rm e2e npx playwright test "$@" ;;
@@ -95,6 +111,8 @@ case "${1:-help}" in
 ./db.sh test-worker    Test the worker on a throwaway database and real mail server
 ./db.sh integration    Whole pipeline test on the running stack
 ./db.sh simulate       Fake cluster heads calling the live API
+./db.sh firmware-build Compile the ESP32 cluster head firmware
+./db.sh test-firmware  Test the firmware's ARQ engine, including against the running API
 ./db.sh e2e            Browser tests against the running app and demo data
 ./db.sh web <command>  Run a command in the web app's Node container
 ./db.sh up | down | migrate | rollback | lint

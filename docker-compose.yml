@@ -12,6 +12,7 @@ x-db-env: &db-env
 services:
   db:
     image: timescale/timescaledb:2.31.0-pg17
+    restart: unless-stopped
     # The image would otherwise give itself 25% of the host's RAM, which is too much on a
     # server shared with other services. Raise this on a dedicated VM (M9).
     command: ["postgres", "-c", "shared_buffers=${NAKHEL_DB_SHARED_BUFFERS:-512MB}"]
@@ -102,7 +103,19 @@ services:
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       EMAIL_FROM: ${EMAIL_FROM}
     ports:
-      - "127.0.0.1:${NAKHEL_WEB_PORT:-3100}:3000"
+      # Private by default. A deployment sets NAKHEL_WEB_BIND=0.0.0.0 in .env to accept outside traffic.
+      - "${NAKHEL_WEB_BIND:-127.0.0.1}:${NAKHEL_WEB_PORT:-3100}:3000"
+    restart: unless-stopped
+
+  # ESP32 firmware build and tests. Toolchains stay in a volume, so they download only once.
+  firmware:
+    profiles: [tools]
+    build: ./firmware/cluster_head
+    image: nakhel-firmware:local
+    volumes:
+      - ./firmware/cluster_head:/project
+      - nakhel_platformio:/root/.platformio
+    working_dir: /project
 
   # Browser tests. network_mode host: they reach the app on its published port.
   e2e:
@@ -149,9 +162,11 @@ services:
   # Catches all email in development. Inbox: http://127.0.0.1:8026
   mailpit:
     image: axllent/mailpit:v1.33.0
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8026:8025"
       - "127.0.0.1:1026:1025"
 
 volumes:
   nakhel_db:
+  nakhel_platformio:

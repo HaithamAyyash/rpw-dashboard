@@ -550,3 +550,64 @@ describe("contract", () => {
     expect(readFileSync(file, "utf8")).toBe(measurementJsonSchema());
   });
 });
+
+describe("results from a model on the node", () => {
+  const result = (extra: object = {}) => {
+    const { mfcc: _matrix, ...rest } = body();
+    return { ...rest, confidence: 0.85, model_version: "node-1.0", ...extra };
+  };
+
+  it("stores the result as pending with no matrix or energy", async () => {
+    const payload = result();
+    const res = await send(org.apiKey, payload);
+    expect(res.status).toBe(201);
+    const rows = await ownerQuery<{
+      mfcc: unknown;
+      energy: unknown;
+      confidence: number;
+      model_version: string;
+      status: string;
+    }>(
+      'SELECT mfcc, energy, confidence, model_version, status FROM acoustic_features WHERE org_id = $1 AND "timestamp" = $2',
+      [org.orgId, payload.timestamp],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      mfcc: null,
+      energy: null,
+      model_version: "node-1.0",
+      status: "pending",
+    });
+    expect(rows[0]!.confidence).toBeCloseTo(0.85, 5);
+  });
+
+  it("answers a resend with 200 duplicate", async () => {
+    const payload = result();
+    expect((await send(org.apiKey, payload)).status).toBe(201);
+    const again = await send(org.apiKey, payload);
+    expect(again.status).toBe(200);
+    expect((await again.json()).status).toBe("duplicate");
+  });
+
+  it.each([
+    ["confidence above 1", { confidence: 1.01 }],
+    ["confidence below 0", { confidence: -0.01 }],
+    ["confidence as text", { confidence: "0.5" }],
+    ["no model version", { model_version: undefined }],
+    ["a model version unsafe to store", { model_version: "node 1;drop" }],
+    ["an empty model version", { model_version: "" }],
+    ["a matrix as well", { mfcc: mfcc() }],
+  ])("refuses %s", async (_name, extra) => {
+    expect((await send(org.apiKey, result(extra))).status).toBe(400);
+  });
+
+  it("refuses neither a matrix nor a confidence", async () => {
+    const { mfcc: _matrix, ...rest } = body();
+    expect((await send(org.apiKey, rest)).status).toBe(400);
+  });
+
+  it("refuses a model version on a matrix", async () => {
+    const res = await send(org.apiKey, body({ model_version: "node-1.0" }));
+    expect(res.status).toBe(400);
+  });
+});

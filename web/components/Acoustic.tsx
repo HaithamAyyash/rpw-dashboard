@@ -126,7 +126,10 @@ function Overlay({ range, zone }: { range: RangeKey; zone: string }) {
         <div className="h-[240px] animate-pulse rounded-md bg-white/5" />
       )}
       {overview.data && chart.buckets.length === 0 && (
-        <EmptyState>No measurements in this period.</EmptyState>
+        <EmptyState>
+          No acoustic data in this period. Nodes that run the model on board
+          send only their result.
+        </EmptyState>
       )}
       {chart.buckets.length > 0 && (
         <>
@@ -225,7 +228,8 @@ function NodeChart({
       )}
       {energy.data && items.length === 0 && (
         <p className="flex h-[140px] items-center justify-center text-[12px] text-text-3">
-          No measurements in this period.
+          No acoustic data in this period. Nodes that run the model on board
+          send only their result.
         </p>
       )}
       {items.length > 0 && (

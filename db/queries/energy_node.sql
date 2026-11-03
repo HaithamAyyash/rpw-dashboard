@@ -7,6 +7,7 @@ SELECT time_bucket($4, f."timestamp") AS bucket,
        count(*)::int       AS measurements
 FROM acoustic_features f
 WHERE f.org_id = current_org_id() AND f.node_id = $1
+  AND f.energy IS NOT NULL  -- results from a model on the node have no matrix, so no energy
   AND f."timestamp" >= $2 AND f."timestamp" < $3
 GROUP BY 1
 ORDER BY 1;

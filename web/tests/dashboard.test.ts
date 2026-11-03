@@ -14,7 +14,7 @@ import { pool } from "@/lib/db/pool";
 import { generatedQueries } from "@/scripts/gen-queries";
 import { makeOrg, ownerQuery, type TestOrg } from "./helpers";
 
-const ORIGIN = "http://127.0.0.1:3100";
+const ORIGIN = (process.env.APP_ORIGIN ?? "").split(",")[0]!.trim();
 const BASE = "http://test/api/v1";
 
 function loginRequest(

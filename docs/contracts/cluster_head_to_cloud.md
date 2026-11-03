@@ -1,10 +1,10 @@
 # Cluster Head → Cloud Contract
 
-How a Raspberry Pi cluster head sends measurements to NAKHEL. The body's exact rules are in [`measurement.schema.json`](measurement.schema.json), generated from the server's validation code. A working client to copy is in [`tools/pi_client_example.py`](../../tools/pi_client_example.py).
+How a cluster head sends measurements to NAKHEL. The body's exact rules are in [`measurement.schema.json`](measurement.schema.json), generated from the server's validation code. The ESP32 client is in [`firmware/cluster_head`](../../firmware/cluster_head/README.md). A Python reference client is in [`tools/pi_client_example.py`](../../tools/pi_client_example.py). "The Pi" below means whichever device is the cluster head.
 
 ## `POST /api/v1/ingest/measurements`
 
-One call is one measurement from one node. Send it over HTTPS (TLS 1.2+) with a body under 64 KB; a normal measurement is about 3–6 KB.
+One call is one measurement from one node. It carries either the result of a model on the node (what the ESP32 sends) or an MFCC matrix for the server's model, never both. Send it over HTTPS (TLS 1.2+) with a body under 64 KB; a node result is about 150 bytes and a matrix about 3–6 KB.
 
 ### Authentication
 
@@ -15,6 +15,19 @@ Authorization: Bearer <API key>
 Each cluster head has its own key, created when it's registered and shown once. It identifies both the cluster head and its organization, so neither goes in the body. Keep it out of logs and out of source control.
 
 ### Body
+
+A result from a model on the node:
+
+```json
+{
+  "node_id": 42,
+  "timestamp": "2026-10-24T18:00:04Z",
+  "confidence": 0.85,
+  "model_version": "node-model-1"
+}
+```
+
+A matrix for the server's model:
 
 ```json
 {
@@ -31,7 +44,9 @@ Each cluster head has its own key, created when it's registered and shown once. 
 |---|---|---|---|
 | `node_id` | Yes | integer 0–255 | The node's LoRa ID. Unique only within this cluster head, and the node must already be registered under it |
 | `timestamp` | Yes | ISO 8601 with time and zone | When the node recorded the sample. `Z` preferred; a bare date or local time is refused |
-| `mfcc` | Yes | 30 × 13 numbers | Row = frame, column = coefficient. Magnitude up to 3.4e38; stored as 32-bit floats |
+| `confidence` | One of these two | number 0–1 | **Probability of infestation**, whatever the model decided. 0.95 means almost certainly infested, never "95% sure it's healthy". Send every result, including healthy ones: a tree's status is the average of its last 3 |
+| `mfcc` | One of these two | 30 × 13 numbers | Row = frame, column = coefficient. Magnitude up to 3.4e38; stored as 32-bit floats |
+| `model_version` | With `confidence`, and only then | 1–64 letters, digits, `.`, `_` or `-` | Which model on the node produced the result |
 | `msg_id` | No | UUID | ID of the row in your SQLite buffer |
 | `received_at` | No | ISO 8601 with zone | When the Pi received the LoRa packet |
 | `snr_db` | No | number | From the LoRa packet |

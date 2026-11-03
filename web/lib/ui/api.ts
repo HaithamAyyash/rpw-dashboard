@@ -147,7 +147,7 @@ export type FeatureRecord = {
   lora_id: number;
   tree_label: string;
   timestamp: string;
-  energy: number;
+  energy: number | null;
   snr_db: number | null;
   rssi_dbm: number | null;
   status: string;

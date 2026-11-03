@@ -180,7 +180,7 @@ export function History() {
                     {formatDateTime(row.timestamp, org.timezone)}
                   </td>
                   <td className={`${tdClass} font-mono`}>
-                    {row.energy.toFixed(1)}
+                    {row.energy?.toFixed(1) ?? "—"}
                   </td>
                   <td className={`${tdClass} font-mono`}>
                     {row.snr_db?.toFixed(1) ?? "—"}

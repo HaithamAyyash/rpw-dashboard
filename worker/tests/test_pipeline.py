@@ -306,3 +306,62 @@ class TestMainLoop:
 
 def _refuse(*_args, **_kwargs):
     raise OSError('connection refused')
+
+
+class _Refuses(Classifier):
+    """Proves the server's model isn't used for a result that came from a node."""
+    model_version = 'must-not-appear'
+
+    def predict(self, mfcc):
+        raise AssertionError('the classifier ran on a node result')
+
+
+def node_result(org, owner, confidence, age_minutes=0, model='node-1.0'):
+    ts = NOW - timedelta(minutes=5 - age_minutes)
+    with owner.cursor() as cur:
+        cur.execute('INSERT INTO acoustic_features '
+                    '("timestamp", org_id, node_id, cluster_id, confidence, model_version) '
+                    'VALUES (%s, %s, %s, %s, %s, %s)',
+                    (ts, org.org_id, org.node_id, org.cluster_id, confidence, model))
+    return ts
+
+
+class TestResultsFromNodes:
+    def test_stored_as_sent_without_running_the_classifier(self, conn, cfg, org, owner):
+        ts = node_result(org, owner, 0.85)
+        assert process_next(conn, _Refuses(), cfg) is True
+        with owner.cursor() as cur:
+            cur.execute('SELECT label, confidence, model_version, inference_ms FROM classification_results '
+                        'WHERE node_id = %s AND "timestamp" = %s', (org.node_id, ts))
+            label, confidence, model, inference_ms = cur.fetchone()
+            assert (label, model, inference_ms) == ('infested', 'node-1.0', None)
+            assert confidence == pytest.approx(0.85)
+            cur.execute('SELECT status FROM acoustic_features WHERE node_id = %s AND "timestamp" = %s',
+                        (org.node_id, ts))
+            assert cur.fetchone()[0] == 'classified'
+
+    @pytest.mark.parametrize('confidence,label', [(0.0, 'healthy'), (0.2, 'healthy'), (1.0, 'infested')])
+    def test_label_follows_the_probability(self, conn, cfg, org, owner, confidence, label):
+        ts = node_result(org, owner, confidence)
+        process_next(conn, _Refuses(), cfg)
+        with owner.cursor() as cur:
+            cur.execute('SELECT label FROM classification_results WHERE node_id = %s AND "timestamp" = %s',
+                        (org.node_id, ts))
+            assert cur.fetchone()[0] == label
+
+    def test_high_results_raise_an_alert_and_low_results_bring_the_tree_back(self, conn, cfg, org, owner):
+        for age in range(3):
+            node_result(org, owner, 0.95, age_minutes=age)
+        drain(conn, cfg, _Refuses())
+        with owner.cursor() as cur:
+            cur.execute("SELECT count(*) FROM alert_log WHERE node_id = %s AND alert_type = 'infestation_detected'",
+                        (org.node_id,))
+            assert cur.fetchone()[0] == 1
+            cur.execute('SELECT status FROM node_status WHERE node_id = %s', (org.node_id,))
+            assert cur.fetchone()[0] == 'alert'
+        for age in range(3, 6):
+            node_result(org, owner, 0.05, age_minutes=age)
+        drain(conn, cfg, _Refuses())
+        with owner.cursor() as cur:
+            cur.execute('SELECT status FROM node_status WHERE node_id = %s', (org.node_id,))
+            assert cur.fetchone()[0] == 'healthy'

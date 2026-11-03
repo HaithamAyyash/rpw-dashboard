@@ -61,15 +61,17 @@ export async function storeMeasurement(
 
     const { rowCount } = await client.query(
       `INSERT INTO acoustic_features
-         ("timestamp", org_id, node_id, cluster_id, mfcc, snr_db, rssi_dbm, msg_id, received_at, schema_version)
-       VALUES ($1, $2, $3, $4, $5::real[], $6, $7, $8, $9, $10)
+         ("timestamp", org_id, node_id, cluster_id, mfcc, confidence, model_version, snr_db, rssi_dbm, msg_id, received_at, schema_version)
+       VALUES ($1, $2, $3, $4, $5::real[], $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (node_id, "timestamp") DO NOTHING`,
       [
         m.timestamp,
         identity.orgId,
         nodeId,
         identity.clusterId,
-        toRealMatrix(m.mfcc),
+        m.mfcc === undefined ? null : toRealMatrix(m.mfcc),
+        m.confidence === undefined ? null : Math.fround(m.confidence),
+        m.model_version ?? null,
         m.snr_db === undefined ? null : Math.fround(m.snr_db),
         m.rssi_dbm ?? null,
         m.msg_id ?? null,

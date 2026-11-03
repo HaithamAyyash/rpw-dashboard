@@ -9,6 +9,7 @@ WITH per_node AS MATERIALIZED (
          sum(f.energy) AS energy_sum, count(*) AS measurements
   FROM acoustic_features f
   WHERE f.org_id = current_org_id()
+    AND f.energy IS NOT NULL  -- results from a model on the node have no matrix, so no energy
     AND ($4::text IS NULL OR f.node_id IN (
       SELECT n.node_id FROM nodes n WHERE n.org_id = current_org_id() AND n.farm_zone = $4))
     AND f."timestamp" >= $1 AND f."timestamp" < $2

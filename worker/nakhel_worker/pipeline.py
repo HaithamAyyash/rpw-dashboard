@@ -5,6 +5,7 @@ from time import perf_counter
 
 import psycopg2
 
+from .classifier.base import prediction_from_probability
 from .preprocess import preprocess
 from .rules import INFESTATION_TYPES, LastAlert, should_raise_infestation
 from .status import band
@@ -13,7 +14,7 @@ log = logging.getLogger(__name__)
 
 # SKIP LOCKED: a second worker could run alongside this one and never take the same row.
 CLAIM_SQL = """
-    SELECT f."timestamp", f.org_id, f.node_id, f.mfcc
+    SELECT f."timestamp", f.org_id, f.node_id, f.mfcc, f.confidence, f.model_version
     FROM acoustic_features f
     WHERE f.status = 'pending'
     ORDER BY f.ingested_at
@@ -82,16 +83,22 @@ def process_next(conn, classifier, cfg, stats=None):
             row = cur.fetchone()
             if row is None:
                 return False
-            measurement_ts, org_id, node_id, mfcc = row
+            measurement_ts, org_id, node_id, mfcc, node_confidence, node_model = row
 
-            started = perf_counter()
-            prediction = classifier.predict(preprocess(mfcc, stats))
-            inference_ms = (perf_counter() - started) * 1000
+            if node_confidence is not None:
+                # The node already ran a model. Only the classification step is skipped.
+                prediction = prediction_from_probability(node_confidence)
+                model_version, inference_ms = node_model, None
+            else:
+                started = perf_counter()
+                prediction = classifier.predict(preprocess(mfcc, stats))
+                inference_ms = (perf_counter() - started) * 1000
+                model_version = classifier.model_version
 
             cur.execute('SELECT avg_confidence FROM node_current WHERE node_id = %s', (node_id,))
             previous_average = cur.fetchone()[0]
             cur.execute(INSERT_RESULT_SQL, (measurement_ts, org_id, node_id, prediction.label,
-                                            prediction.confidence, classifier.model_version, inference_ms))
+                                            prediction.confidence, model_version, inference_ms))
             cur.execute(MARK_SQL, ('classified', node_id, measurement_ts))
             raise_infestation_alert(cur, cfg, org_id, node_id, measurement_ts, previous_average,
                                     datetime.now(timezone.utc))

@@ -152,3 +152,31 @@ For citation in the Senior Design II report. Each entry records what the report 
 | K7 | TypeScript 6.0.3 and ESLint 9.39.5, not the newest majors (7 and 10) | Next's lint plugins don't support them yet. |
 | K8 | `node` Compose service for npm, tests and scripts; web app on `127.0.0.1:3100` | Nothing to install on the host; 3000 is commonly taken on this server. |
 | K4 | Owner role doesn't use `FORCE ROW LEVEL SECURITY` | `SECURITY DEFINER` lookups and the seed script run as the owner and must see every organization. No app connects as the owner. |
+
+## ESP32 cluster head firmware
+
+| # | Decision | Why / action needed |
+|---|---|---|
+| E1 | **The test cluster head is an ESP32 on Wi-Fi, not a Raspberry Pi (team, 2026-11-03).** The API is unchanged. Client in `firmware/cluster_head`, PlatformIO with the Arduino framework. | Report and PLAN.md describe a Pi with a Python daemon and SQLite. |
+| E2 | Stop-and-wait ARQ: one record in flight, removed only on acknowledgement, resent forever with the contract's backoff. | Team asked for ARQ. The server's `(node, timestamp)` identity already makes resends safe, so one in flight keeps order with the least RAM. |
+| E3 | The LoRa side and uplink meet at `UplinkQueue` (`peek` and `remove`). | Keeps the radio and buffer code separate from the ARQ. |
+| E4 | The default buffer is RAM, 512 records, with no SQLite equivalent. New records are refused when it is full. | **Open: a power cut loses what's buffered, and a long outage drops new data.** ARQ protects against network loss, not this. The LoRa side owns the buffer, so it decides whether to use flash or SD. |
+| E5 | An ACK or a final refusal must be our server's JSON, not just a status code. Any other answer, including 403, 404 and 3xx, is retried. Stricter than `tools/pi_client_example.py`, which treats a 200 as success and every other 4xx as final. | A Wi-Fi login portal answering 200, or a misconfigured proxy answering 404, would otherwise silently delete the buffer. Cost: a persistent non-server answer blocks the queue until it's fixed. |
+| E6 | Refused records are logged and passed to `onRejected`, not stored. | No rejected table on the ESP32. The server keeps a copy of 422 bodies and an excerpt of other refusals in `ingest_rejects`. |
+| E7 | Cluster health is one attempt every 5 minutes, not retransmitted. `sd_free_mb` is not sent, and the dashboard shows it as empty. | The next reading replaces a lost one. A backlog can't delay it, which would raise a false `cluster_offline`. |
+| E8 | Nothing is sent before NTP has set the clock. | Certificate checks and health timestamps need a real time. |
+| E9 | HTTPS verifies the server against `NAKHEL_ROOT_CA`. The build fails for an `https://` URL without one, and there is no skip-verification option. | The API key would otherwise go to anyone able to intercept the connection. |
+
+## Model on the node (team, 2026-11-03)
+
+For the first test, the nodes run the model and the packet carries a single 32-bit float confidence where the MFCC values were. This replaces T3 for the test. The team confirmed that it is the probability of infestation, that nodes send every result, and that raw data isn't needed for now.
+
+| # | Decision | Why / action needed |
+|---|---|---|
+| M1 | `/ingest/measurements` and `acoustic_features` take `confidence` + `model_version` as an alternative to `mfcc`, with exactly one enforced by the API and the database. No new endpoint or table. | Alerts, status, history and latency keep working from one queue, and the server's model can return without a migration. The table name is now a little misleading. |
+| M2 | The worker files a node's result as it came, without running the classifier. The label is `infested` from 0.5, as for the server's model. `inference_ms` is empty. | The alert and status logic is shared. **The report's inference-time measurements (Table 6.3 area) can't come from the server in this mode;** end-to-end latency still can. |
+| M3 | The packet has no model version, so the ESP32 sends a fixed `kNodeModelVersion` (`node-model-1`), stored with each record. | **Whoever updates the nodes' model must change this too,** or results from different models look the same. |
+| M4 | The Acoustic screen stays and says no acoustic data is available. Energy is blank in History and the CSV export. | Older matrix data still displays. Hide the screen if the matrix stays gone. |
+| M5 | No raw data reaches the server, so old measurements can't be re-scored by a newer model or used for retraining. | Accepted by the team for now. |
+| M6 | The ESP32's default buffer grew from 32 to 512 records, using about the same RAM. | Records shrank from about 1.6 KB to about 100 bytes. |
+

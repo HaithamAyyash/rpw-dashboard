@@ -48,7 +48,7 @@ import {
   type TestOrg,
 } from "./helpers";
 
-const ORIGIN = "http://127.0.0.1:3100";
+const ORIGIN = (process.env.APP_ORIGIN ?? "").split(",")[0]!.trim();
 const BASE = "http://test/api/v1";
 
 type Handler = (
